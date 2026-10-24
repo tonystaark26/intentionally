@@ -1,5 +1,5 @@
 // Offline cache: the app shell is cached on install, fonts are cached the first time they load.
-const CACHE = 'intentionally-e4928720';
+const CACHE = 'intentionally-fdbdc540';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

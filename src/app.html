@@ -157,6 +157,22 @@ nav.tabs button[aria-current="page"] { color: var(--accent); font-weight: 600 }
 .first input:checked + .dot::after { content: ""; width: 12px; height: 12px; border-radius: 50%; background: var(--accent) }
 .first input:focus-visible + .dot { outline: 2px solid var(--accent); outline-offset: 2px }
 .first .nm .note { display: block; font-size: 12px }
+.entry { padding: 14px 16px 16px; border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--line)) }
+.entry-head { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center }
+.entry-date { text-align: center; display: grid; gap: 2px; position: relative }
+.entry-date b { font-family: var(--f-display); font-size: 21px; font-weight: 650; line-height: 1.2 }
+.entry-date .eyebrow { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); font-weight: 600 }
+.entry-date input[type=date] { justify-self: center; border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; background: var(--surface); font-size: 13px; color: var(--muted) }
+.linkbtn { border: 0; background: none; color: var(--accent); font-size: 13px; padding: 6px 0 0; display: block; margin: 0 auto; text-decoration: underline }
+.entry-cols { display: grid; gap: 0 22px; margin-top: 4px }
+.entry .group { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px }
+.entry .group h4 { margin: 0 0 8px; font-size: 15px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap }
+.entry .group.r h4 { color: var(--recv) } .entry .group.o h4 { color: var(--accent) }
+.entry .actions { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap }
+.entry .actions .spacer { flex: 1 }
+.big-btn { padding: 12px 28px; font-size: 16px }
+@media (min-width: 700px) { .entry-cols { grid-template-columns: 1fr 1fr } }
+.day.sel { background: color-mix(in srgb, var(--accent) 7%, transparent) }
 .fbox { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; margin-top: 8px; display: grid; gap: 8px }
 .fbox .lab { font-size: 13px; font-weight: 600 }
 .fbox .note { margin: 0 }
@@ -265,7 +281,7 @@ const ml = s => `<span class="ml">${esc(s)}</span>`;
 
 /* ---------- State ---------- */
 let S;
-const ui = { tab: 'mass', month: monthKeyOf(todayISO()), massView: 'days', pMonth: monthKeyOf(todayISO()) };
+const ui = { tab: 'mass', day: todayISO(), month: monthKeyOf(todayISO()), massView: 'days', pMonth: monthKeyOf(todayISO()) };
 
 function blank() {
   return {
@@ -454,31 +470,42 @@ function render() {
   nav.innerHTML = `<div class="in">${[['mass', 'Mass book'], ['personal', 'Personal'], ['settings', 'Settings']].map(([id, l]) =>
     `<button data-act="tab" data-v="${id}" ${ui.tab === id ? 'aria-current="page"' : ''}>${ICONS[id]}<span>${l}</span></button>`).join('')}</div>`;
   let fab = $('#fab');
-  if (ui.tab === 'settings') { fab?.remove(); }
+  if (ui.tab !== 'personal') { fab?.remove(); }
   else {
     if (!fab) { fab = document.createElement('button'); fab.id = 'fab'; fab.className = 'fab'; fab.textContent = '+'; document.body.appendChild(fab); }
-    fab.dataset.act = ui.tab === 'mass' ? 'add-today' : 'add-txn';
-    fab.setAttribute('aria-label', ui.tab === 'mass' ? 'Add entry for today' : 'Add transaction');
+    fab.dataset.act = 'add-txn';
+    fab.setAttribute('aria-label', 'Add transaction');
   }
+  if (ui.tab === 'mass') mountEntry();
 }
 
 function renderMass() {
   const k = ui.month, [y, m] = k.split('-').map(Number);
   const open = openingOf(k), tot = monthTotals(k), close = closingFrom(open, tot);
-  const pending = sumObj(close);
-  const said = sumObj(tot.o);
-  let h = `<div class="monthbar">
+  const pending = sumObj(closingFrom(openingOf(monthKeyOf(todayISO())), monthTotals(monthKeyOf(todayISO()))));
+  const limit = n0(S.settings.holdLimit) || 100;
+  let h = `<div class="stack">`;
+  if (pending > limit) h += `<div class="banner"><span>You are holding <b>${pending}</b> intentions. Only ${limit} should be kept at a time. Hand over the extra ${pending - limit}.</span><button class="btn small" data-act="edit-handed">Hand over</button></div>`;
+
+  h += renderEntry(pending);
+  h += renderGregorians();
+
+  // This month's days
+  h += `<div class="monthbar" style="margin:10px 0 0">
     <button class="iconbtn" data-act="month" data-v="-1" aria-label="Previous month">‹</button>
     <h2>${esc(monthName(k))}<span class="ml">${ML.month}: ${ML_MONTHS[m - 1]} · ${ML.year}: ${y}</span></h2>
-    <button class="iconbtn" data-act="month" data-v="1" aria-label="Next month">›</button></div>`;
+    <button class="iconbtn" data-act="month" data-v="1" aria-label="Next month">›</button></div>
+    <div class="row between"><div class="seg" role="group" aria-label="View"><button data-act="mview" data-v="days" aria-pressed="${ui.massView === 'days'}">Days</button><button data-act="mview" data-v="book" aria-pressed="${ui.massView === 'book'}">Book page</button></div>
+    <span class="note">Tap a day to change it</span></div>`;
+  h += ui.massView === 'days' ? renderDays(k) : renderBook(k, open, tot, close);
 
-  const limit = n0(S.settings.holdLimit) || 100;
-  h += `<div class="stack">${pending > limit ? `<div class="banner"><span>You are holding <b>${pending}</b> intentions. Only ${limit} should be kept at a time. Hand over the extra ${pending - limit}.</span><button class="btn small" data-act="edit-handed">Hand over</button></div>` : ''}<div class="card hero">
-      <div><div class="label">Intentions still to offer</div><div class="big num">${pending}</div></div>
+  // Month-end account
+  const said = sumObj(tot.o);
+  h += `<div class="section-h" style="margin-top:12px"><h3>Month-end account · ${esc(monthName(k))}</h3></div>
+    <div class="card hero">
+      <div><div class="label">Intentions still to offer</div><div class="big num">${sumObj(close)}</div></div>
       <div class="side num"><span>Received <b>${Object.entries(tot.r).reduce((a, [id, n]) => a + n0(n) * perIntention(id), 0)}</b></span><span>Offered <b>${said}</b></span><span>Stipends <b>${money(tot.amt)}</b></span><span>Still owed <b>${money(recvTypes().reduce((a, t) => a + Math.max(0, n0(close[t.id])) * (t.id === FOUNDATION ? foundationRate() : n0(t.rate) / perIntention(t.id)), 0))}</b></span></div>
     </div>`;
-
-  // summary by type
   h += `<div class="card scroll"><table class="sumtable num"><thead><tr>
       <th>Mass type</th><th>Balance</th><th>Opening</th><th>Recd.${ml(ML.received)}</th><th>Offered${ml(ML.offered)}</th><th>Handed</th>
     </tr></thead><tbody>`;
@@ -492,17 +519,50 @@ function renderMass() {
     const yb = yearBinations(y), rate = n0(typeById('ordinary')?.rate) || 150;
     h += `<tr><td colspan="6" class="note" style="text-align:left">Binations in ${y}: <b>${yb}</b> × ${money(rate)} = <b>${money(yb * rate)}</b></td></tr>`;
   }
-  h += `</tbody></table></div>`;
-
-  h += `<div class="row between">
-      <div class="seg" role="group" aria-label="View"><button data-act="mview" data-v="days" aria-pressed="${ui.massView === 'days'}">Days</button><button data-act="mview" data-v="book" aria-pressed="${ui.massView === 'book'}">Book page</button></div>
-      <div class="row"><button class="btn small" data-act="edit-opening">Opening balance</button><button class="btn small" data-act="edit-handed">Handed over</button></div>
-    </div>`;
-
-  h += renderGregorians();
-  h += ui.massView === 'days' ? renderDays(k) : renderBook(k, open, tot, close);
+  h += `</tbody></table></div>
+    <div class="row"><button class="btn small" data-act="edit-opening">Opening balance</button><button class="btn small" data-act="edit-handed">Handed over</button></div>`;
   h += `</div>`;
   return h;
+}
+
+// The day's entry form sits at the top of the Mass book: new intentions received and the Mass offered.
+function renderEntry(pending) {
+  const iso = ui.day, k = monthKeyOf(iso), d = Number(iso.slice(8));
+  const e = S.mass[k]?.days?.[d] || {};
+  const R = recvTypes(), O = offTypes().filter(t => t.id !== BINATION), off = splitOffered(e.o);
+  const isToday = iso === todayISO();
+  const dateLabel = new Date(iso + 'T00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
+  return `<div class="card entry" id="entry" data-fkind="${esc(e.fk || 'ordinary')}">
+    <div class="entry-head">
+      <button class="iconbtn" data-act="day-shift" data-v="-1" aria-label="Previous day">‹</button>
+      <div class="entry-date"><span class="eyebrow">${isToday ? 'Today' : (S.mass[k]?.days?.[d] ? 'Editing' : 'Entry for')}</span><b>${esc(dateLabel)}</b>
+        <input type="date" id="entrydate" value="${iso}" aria-label="Choose date"></div>
+      <button class="iconbtn" data-act="day-shift" data-v="1" aria-label="Next day">›</button>
+    </div>
+    ${isToday ? '' : `<button class="linkbtn" data-act="day-today">Back to today</button>`}
+    <div class="entry-cols">
+      <section class="group r"><h4>New intentions received ${ml(ML.received)}</h4>
+        ${R.map(t => `<div class="stepper-row"><span class="nm">${esc(t.en)} ${ml(t.ml)}${t.id === GREGORIAN ? '<span class="note">1 intention = 30 Masses</span>' : ''}</span>${stepper('r_' + t.id, e.r?.[t.id])}</div>`).join('')}
+        ${typeById(FOUNDATION) ? foundationBox(e.fk) : ''}
+        <div class="field"><label for="amt">Stipend received (₹)</label><input id="amt" type="number" inputmode="decimal" min="0" value="${n0(e.amt) || ''}" placeholder="0" data-auto="${e.amt == null || n0(e.amt) === stipendFor(e.r, e.fk) ? 1 : 0}"><span class="note">Worked out from your stipend rates. Change it if you received a different amount.</span></div>
+      </section>
+      <section class="group o"><h4>Mass offered ${ml(ML.offered)}</h4>
+        <p class="note" style="margin:0 0 4px">Tick the first Mass you offered. Every Mass after it is a bination.</p>
+        <div class="firstlist">
+          ${O.map(t => `<label class="first"><input type="radio" name="first" value="${t.id}" ${off.first === t.id ? 'checked' : ''}><span class="dot" aria-hidden="true"></span><span class="nm">${esc(t.en)} ${ml(t.ml)}${t.id === GREGORIAN ? '<span class="note">One of the 30 days</span>' : ''}</span></label>`).join('')}
+          <label class="first"><input type="radio" name="first" value="" ${off.first ? '' : 'checked'}><span class="dot" aria-hidden="true"></span><span class="nm">No Mass offered</span></label>
+        </div>
+        ${typeById(BINATION) ? `<div class="stepper-row" style="margin-top:6px"><span class="nm">${esc(typeById(BINATION).en)} ${ml(typeById(BINATION).ml)}<span class="note">Masses after the first. Each one uses up one Ordinary Mass intention you hold.</span></span>${stepper('o_' + BINATION, off.bin)}</div>` : ''}
+      </section>
+    </div>
+    <div class="field"><label for="rem">Notes</label><textarea id="rem" placeholder="Name of the person, intention, place">${esc(e.rem || '')}</textarea></div>
+    <div class="actions">${S.mass[k]?.days?.[d] ? '<button class="btn danger" data-act="day-clear">Clear this day</button>' : ''}<span class="spacer"></span><span class="note">Holding <b class="num">${pending}</b> intentions</span><button class="btn primary big-btn" data-act="day-save">Save</button></div>
+  </div>`;
+}
+function mountEntry() {
+  const en = $('#entry'); if (!en) return;
+  const fb = $('#fbox', en);
+  if (fb) fb.hidden = !(readCounts(en, 'r_')[FOUNDATION] || readOffered(en)[FOUNDATION]);
 }
 
 function typeById(id) { return S.settings.types.find(t => t.id === id); }
@@ -529,9 +589,10 @@ function renderDays(k) {
       if (off.bin) chips += `<span class="chip o">+${off.bin} Bination</span>`;
       if (n0(e.amt)) chips += `<span class="chip m">${money(e.amt)}</span>`;
     }
-    h += `<button class="day ${isToday ? 'today' : ''}" data-act="edit-day" data-v="${d}">
+    const sel = `${k}-${pad(d)}` === ui.day;
+    h += `<button class="day ${isToday ? 'today' : ''} ${sel ? 'sel' : ''}" data-act="edit-day" data-v="${d}">
       <span class="dn num">${d}<small>${weekday(k, d)}</small></span>
-      <span class="chips">${chips || `<span class="empty">${isToday ? 'Today · tap to add' : '—'}</span>`}</span>
+      <span class="chips">${chips || `<span class="empty">—</span>`}</span>
       <span class="go" aria-hidden="true">›</span>
       ${e?.rem ? `<span class="rem">${esc(e.rem)}</span>` : ''}
     </button>`;
@@ -685,7 +746,7 @@ function refreshStipend(sh) {
   const r = readCounts(sh, 'r_'), o = readOffered(sh);
   const fb = $('#fbox', sh); if (fb) fb.hidden = !(r[FOUNDATION] || o[FOUNDATION]);
   const amt = $('#amt', sh);
-  if (amt && amt.dataset.auto === '1') amt.value = stipendFor(r, sh.dataset.fk) || '';
+  if (amt && amt.dataset.auto === '1') amt.value = stipendFor(r, sh.dataset.fkind) || '';
 }
 // Only one Mass a day counts as the day's Mass; every Mass after it is a bination.
 const BINATION = 'bination';
@@ -700,42 +761,12 @@ function readOffered(sh) {
   const o = {}; if (first) o[first] = 1; if (bin) o[BINATION] = bin;
   return o;
 }
-function dayEditor(d) {
-  const k = ui.month, M = monthData(k), e = M.days[d] || {};
-  const R = recvTypes(), O = offTypes().filter(t => t.id !== BINATION), off = splitOffered(e.o);
-  openSheet(`<h3>${d} ${esc(monthName(k))}</h3><div class="sub">${weekday(k, d)}</div>
-    <div class="group r"><h4>Received ${ml(ML.received)}</h4>
-      ${R.map(t => `<div class="stepper-row"><span class="nm">${esc(t.en)} ${ml(t.ml)}${t.id === GREGORIAN ? '<span class="note">1 intention = 30 Masses</span>' : ''}</span>${stepper('r_' + t.id, e.r?.[t.id])}</div>`).join('')}
-      ${typeById(FOUNDATION) ? foundationBox(e.fk) : ''}
-      <div class="field"><label for="amt">Stipend received (₹)</label><input id="amt" type="number" inputmode="decimal" min="0" value="${n0(e.amt) || ''}" placeholder="0" data-auto="${e.amt == null || n0(e.amt) === stipendFor(e.r, e.fk) ? 1 : 0}"><span class="note">Worked out from your stipend rates. Change it if you received a different amount.</span></div>
-    </div>
-    <div class="group o"><h4>Offered ${ml(ML.offered)}</h4>
-      <p class="note" style="margin:0 0 4px">Tick the first Mass you offered today. Every Mass after it is a bination.</p>
-      <div class="firstlist">
-        ${O.map(t => `<label class="first"><input type="radio" name="first" value="${t.id}" ${off.first === t.id ? 'checked' : ''}><span class="dot" aria-hidden="true"></span><span class="nm">${esc(t.en)} ${ml(t.ml)}${t.id === GREGORIAN ? '<span class="note">One of the 30 days</span>': ''}</span></label>`).join('')}
-        <label class="first"><input type="radio" name="first" value="" ${off.first ? '' : 'checked'}><span class="dot" aria-hidden="true"></span><span class="nm">No Mass offered</span></label>
-      </div>
-      ${typeById(BINATION) ? `<div class="stepper-row" style="margin-top:6px"><span class="nm">${esc(typeById(BINATION).en)} ${ml(typeById(BINATION).ml)}<span class="note">Masses after the first. Each one uses up one Ordinary Mass intention you hold.</span></span>${stepper('o_' + BINATION, off.bin)}</div>` : ''}
-    </div>
-    <div class="field"><label for="rem">Notes</label><textarea id="rem" placeholder="Name of the person, intention, place">${esc(e.rem || '')}</textarea></div>
-    <div class="actions">${M.days[d] ? '<button class="btn danger" data-act="day-clear">Clear day</button>' : ''}<span class="spacer"></span><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="day-save" data-v="${d}">Save</button></div>`,
-  sh => {
-    sh.dataset.fk = e.fk || 'ordinary';
-    sh.querySelectorAll('[data-fk]').forEach(b => b.addEventListener('click', () => {
-      sh.dataset.fk = b.dataset.fk;
-      sh.querySelectorAll('[data-fk]').forEach(x => x.setAttribute('aria-pressed', x === b));
-      refreshStipend(sh);
-    }));
-    sh.querySelectorAll('input[name="first"]').forEach(i => i.addEventListener('change', () => refreshStipend(sh)));
-    const fb = $('#fbox', sh); if (fb) fb.hidden = !(n0(e.r?.[FOUNDATION]) || off.first === FOUNDATION);
-  });
-}
-function saveDay(d) {
-  const sh = $('.sheet'), M = monthData(ui.month);
+function saveDay() {
+  const sh = $('#entry'), k = monthKeyOf(ui.day), d = Number(ui.day.slice(8)), M = monthData(k);
   const entry = { r: readCounts(sh, 'r_'), o: readOffered(sh), amt: n0($('#amt', sh).value), rem: $('#rem', sh).value.trim() };
-  if (entry.r[FOUNDATION] || entry.o[FOUNDATION]) entry.fk = sh.dataset.fk || 'ordinary';
+  if (entry.r[FOUNDATION] || entry.o[FOUNDATION]) entry.fk = sh.dataset.fkind || 'ordinary';
   if (!sumObj(entry.r) && !sumObj(entry.o) && !entry.amt && !entry.rem) delete M.days[d]; else M.days[d] = entry;
-  save(); closeSheet(); render(); toast('Saved');
+  ui.month = k; save(); render(); toast('Saved');
 }
 
 function handedEditor() {
@@ -897,8 +928,10 @@ async function gRestore() {
 
 /* ---------- Events ---------- */
 document.addEventListener('click', e => {
+  const fkBtn = e.target.closest('[data-fk]');
+  if (fkBtn) { const box = fkBtn.closest('.entry'); box.dataset.fkind = fkBtn.dataset.fk; box.querySelectorAll('[data-fk]').forEach(x => x.setAttribute('aria-pressed', x === fkBtn)); refreshStipend(box); return; }
   const stepBtn = e.target.closest('[data-step]');
-  if (stepBtn) { const inp = stepBtn.parentElement.querySelector('input'); inp.value = Math.max(0, n0(inp.value) + Number(stepBtn.dataset.step)) || ''; refreshStipend(stepBtn.closest('.sheet')); return; }
+  if (stepBtn) { const inp = stepBtn.parentElement.querySelector('input'); inp.value = Math.max(0, n0(inp.value) + Number(stepBtn.dataset.step)) || ''; refreshStipend(stepBtn.closest('.sheet, .entry')); return; }
   const el = e.target.closest('[data-act]');
   if (!el) return;
   const act = el.dataset.act, v = el.dataset.v;
@@ -909,10 +942,11 @@ document.addEventListener('click', e => {
     case 'month': ui.month = shiftMonth(ui.month, Number(v)); render(); break;
     case 'pmonth': ui.pMonth = shiftMonth(ui.pMonth, Number(v)); render(); break;
     case 'mview': ui.massView = v; try { localStorage.setItem('intentionally.view', v); } catch (_) {} render(); break;
-    case 'edit-day': dayEditor(Number(v)); break;
-    case 'add-today': ui.month = monthKeyOf(todayISO()); render(); dayEditor(Number(todayISO().slice(8))); break;
-    case 'day-save': saveDay(Number(v)); break;
-    case 'day-clear': { const d = Number($('[data-act=day-save]').dataset.v); delete monthData(ui.month).days[d]; save(); closeSheet(); render(); toast('Day cleared'); break; }
+    case 'edit-day': ui.day = `${ui.month}-${pad(Number(v))}`; render(); scrollTo({ top: 0, behavior: 'smooth' }); break;
+    case 'day-shift': { const dt = new Date(ui.day + 'T00:00'); dt.setDate(dt.getDate() + Number(v)); ui.day = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`; ui.month = monthKeyOf(ui.day); render(); break; }
+    case 'day-today': ui.day = todayISO(); ui.month = monthKeyOf(ui.day); render(); break;
+    case 'day-save': saveDay(); break;
+    case 'day-clear': confirmSheet('Clear this day?', 'All entries for this day will be removed.', 'Clear day', () => { delete monthData(monthKeyOf(ui.day)).days[Number(ui.day.slice(8))]; save(); render(); toast('Day cleared'); }); break;
     case 'edit-handed': handedEditor(); break;
     case 'handed-save': { const sh = $('.sheet'), M = monthData(ui.month); M.handed = { counts: readCounts(sh, 'h_'), rem: $('#hrem', sh).value.trim() }; save(); closeSheet(); render(); toast('Saved'); break; }
     case 'edit-opening': openingEditor(); break;
@@ -948,6 +982,8 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('change', e => {
   const el = e.target;
+  if (el.id === 'entrydate' && el.value) { ui.day = el.value; ui.month = monthKeyOf(el.value); render(); return; }
+  if (el.name === 'first') { refreshStipend(el.closest('.entry')); return; }
   if (el.id === 'importfile' && el.files[0]) { const r = new FileReader(); r.onload = () => importBackup(r.result); r.readAsText(el.files[0]); el.value = ''; return; }
   const act = el.dataset.act; if (!act) return;
   const row = el.closest('.typerow'), t = row && S.settings.types[Number(row.dataset.i)];
@@ -964,7 +1000,7 @@ document.addEventListener('change', e => {
 document.addEventListener('input', e => {
   const el = e.target;
   if (el.id === 'amt') el.dataset.auto = '0';
-  else if (el.name?.startsWith('r_') || el.name?.startsWith('o_')) refreshStipend(el.closest('.sheet'));
+  else if (el.name?.startsWith('r_') || el.name?.startsWith('o_')) refreshStipend(el.closest('.sheet, .entry'));
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
 
