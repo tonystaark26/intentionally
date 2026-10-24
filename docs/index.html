@@ -1,0 +1,993 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#7b1e2c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<style>[hidden]{display:none!important} body{margin:0} :root{padding-top:env(safe-area-inset-top,0px)}</style>
+</head><body>
+<title>Intentionally</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Literata:opsz,wght@7..72,500;7..72,650&family=Noto+Sans+Malayalam:wght@400;600&display=swap">
+<style>
+/* Layout: one narrow column like a pocket ledger, a fixed tab bar at the bottom, sheets slide up for editing */
+:root {
+  --bg: #eef1f4;
+  --surface: #ffffff;
+  --surface-2: #f6f8fa;
+  --ink: #18212c;
+  --muted: #5a6676;
+  --line: #d6dce4;
+  --accent: #7b1e2c;      /* liturgical red: offered side, primary actions */
+  --accent-ink: #ffffff;
+  --recv: #1d6a61;        /* received side */
+  --good: #2c7a3f;
+  --bad: #a3362b;
+  --warn-bg: #fff4d6;
+  --warn-ink: #6b4d00;
+  --shadow: 0 1px 2px rgba(20,30,45,.06), 0 6px 24px rgba(20,30,45,.08);
+  --f-display: "Literata", Georgia, "Noto Sans Malayalam", serif;
+  --f-body: "IBM Plex Sans", "Noto Sans Malayalam", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-ml: "Noto Sans Malayalam", "IBM Plex Sans", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11151b; --surface: #19202a; --surface-2: #1f2733; --ink: #e5e9ef; --muted: #98a3b2; --line: #2c3542;
+  --accent: #e27b8b; --accent-ink: #1a0a0e; --recv: #63c3b5; --good: #6fcf86; --bad: #f08a7e;
+  --warn-bg: #3a3014; --warn-ink: #f3d78a; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 24px rgba(0,0,0,.35);
+  color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #11151b; --surface: #19202a; --surface-2: #1f2733; --ink: #e5e9ef; --muted: #98a3b2; --line: #2c3542;
+  --accent: #e27b8b; --accent-ink: #1a0a0e; --recv: #63c3b5; --good: #6fcf86; --bad: #f08a7e;
+  --warn-bg: #3a3014; --warn-ink: #f3d78a; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 24px rgba(0,0,0,.35);
+  color-scheme: dark }
+
+* { box-sizing: border-box }
+html, body { background: var(--bg); color: var(--ink) }
+body { font-family: var(--f-body); font-size: 15px; line-height: 1.45; -webkit-tap-highlight-color: transparent }
+button, input, select, textarea { font: inherit; color: inherit }
+button { cursor: pointer }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.num { font-variant-numeric: tabular-nums }
+.ml { font-family: var(--f-ml); font-size: .86em; color: var(--muted); font-weight: 400 }
+body.no-ml .ml { display: none }
+
+.wrap { max-width: 760px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 12px calc(96px + env(safe-area-inset-bottom, 0px)) }
+
+header.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 8px 14px }
+.brand { font-family: var(--f-display); font-weight: 650; font-size: 22px; letter-spacing: -.01em }
+.brand small { display: block; font-family: var(--f-body); font-weight: 400; font-size: 12px; color: var(--muted); letter-spacing: .02em }
+
+.banner { background: var(--warn-bg); color: var(--warn-ink); border-radius: 10px; padding: 10px 12px; display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 14px; font-size: 14px }
+
+.monthbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px }
+.monthbar h2 { margin: 0; font-family: var(--f-display); font-weight: 650; font-size: 24px; text-align: center; flex: 1; line-height: 1.15 }
+.monthbar h2 .ml { display: block; font-size: 13px; font-family: var(--f-ml) }
+.iconbtn { width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; font-size: 18px; flex: none }
+
+.card { background: var(--surface); border-radius: 14px; box-shadow: var(--shadow); padding: 16px }
+.stack { display: grid; gap: 14px }
+.section-h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 6px 2px 0 }
+.section-h h3 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600 }
+
+.hero { display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; align-items: end }
+.hero .label { font-size: 13px; color: var(--muted) }
+.hero .big { font-family: var(--f-display); font-size: 40px; font-weight: 650; line-height: 1 }
+.hero .side { text-align: right; font-size: 13px; color: var(--muted); display: grid; gap: 2px }
+
+.seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 3px }
+.seg button { border: 0; background: transparent; padding: 6px 14px; border-radius: 999px; font-size: 14px; color: var(--muted) }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.12); font-weight: 600 }
+
+table { border-collapse: collapse; width: 100% }
+.scroll { overflow-x: auto; -webkit-overflow-scrolling: touch }
+.sumtable th, .sumtable td { padding: 7px 4px; text-align: right; border-bottom: 1px solid var(--line); font-size: 14px; white-space: nowrap }
+.sumtable th:first-child, .sumtable td:first-child { text-align: left; white-space: normal }
+.sumtable td:first-child .ml { display: block; font-size: 11.5px }
+.sumtable thead th .ml { display: block; font-size: 10px }
+.sumtable thead th { font-size: 11.5px; color: var(--muted); font-weight: 500; vertical-align: bottom }
+.sumtable td.bal, .sumtable thead th:nth-child(2) { font-weight: 600; color: var(--ink) }
+.sumtable td.bal { font-size: 16px }
+.sumtable th:first-child, .sumtable td:first-child { max-width: 130px }
+.sumtable tr:last-child td { border-bottom: 0 }
+.neg { color: var(--bad) }
+
+.days { display: grid; gap: 0; padding: 4px 0 }
+.day { display: grid; grid-template-columns: 46px 1fr auto; gap: 10px; align-items: center; padding: 10px 14px; border: 0; background: none; text-align: left; border-bottom: 1px solid var(--line); width: 100% }
+.day:last-child { border-bottom: 0 }
+.day .dn { font-family: var(--f-display); font-size: 20px; font-weight: 650; line-height: 1 }
+.day .dn small { display: block; font-family: var(--f-body); font-size: 11px; color: var(--muted); font-weight: 400; margin-top: 3px }
+.day.today .dn { color: var(--accent) }
+.day .chips { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0 }
+.day .rem { font-size: 13px; color: var(--muted); grid-column: 2 / 4; margin-top: -4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.day .empty { color: var(--muted); font-size: 13px }
+.chip { font-size: 12px; border-radius: 6px; padding: 2px 7px; white-space: nowrap; font-variant-numeric: tabular-nums }
+.chip.r { background: color-mix(in srgb, var(--recv) 14%, transparent); color: var(--recv) }
+.chip.o { background: color-mix(in srgb, var(--accent) 13%, transparent); color: var(--accent) }
+.chip.m { background: var(--surface-2); color: var(--muted) }
+.day .go { color: var(--muted); font-size: 18px }
+
+.book { font-size: 13px }
+.book th, .book td { border: 1px solid var(--line); padding: 5px 6px; text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums }
+.book thead th { font-weight: 500; font-size: 11.5px; line-height: 1.25; white-space: normal; min-width: 54px; vertical-align: bottom }
+.book thead th .ml { display: block; font-size: 10.5px }
+.book .side-r { background: color-mix(in srgb, var(--recv) 9%, var(--surface)); color: var(--recv); font-weight: 600 }
+.book .side-o { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); color: var(--accent); font-weight: 600 }
+.book td.remc { text-align: left; min-width: 140px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; color: var(--muted) }
+.book tbody tr.dayrow { cursor: pointer }
+.book tbody tr.dayrow:hover td { background: var(--surface-2) }
+.book tr.foot td { font-weight: 600; background: var(--surface-2) }
+.book td.lbl { text-align: left; font-weight: 600 }
+.book td.z { color: var(--line) }
+
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 10px 14px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; justify-content: center }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent) }
+.btn.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--line)) }
+.btn.small { padding: 6px 10px; font-size: 13px; border-radius: 8px }
+.btn[disabled] { opacity: .5; cursor: not-allowed }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center }
+.row.between { justify-content: space-between }
+
+.fab { position: fixed; right: max(18px, calc(env(safe-area-inset-right, 0px) + 18px)); bottom: calc(80px + env(safe-area-inset-bottom, 0px)); width: 58px; height: 58px; border-radius: 18px; background: var(--accent); color: var(--accent-ink); border: 0; font-size: 28px; box-shadow: var(--shadow); z-index: 20 }
+
+nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; background: var(--surface); border-top: 1px solid var(--line); display: flex; justify-content: center; padding-bottom: env(safe-area-inset-bottom, 0px); padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px) }
+nav.tabs .in { display: grid; grid-template-columns: repeat(3, 1fr); width: 100%; max-width: 760px }
+nav.tabs button { border: 0; background: none; padding: 9px 4px 10px; display: grid; justify-items: center; gap: 2px; font-size: 12.5px; color: var(--muted) }
+nav.tabs button svg { width: 22px; height: 22px }
+nav.tabs button[aria-current="page"] { color: var(--accent); font-weight: 600 }
+
+/* sheets */
+.scrim { position: fixed; inset: 0; background: rgba(10,14,20,.45); z-index: 40; display: flex; align-items: flex-end; justify-content: center }
+.sheet { background: var(--surface); width: 100%; max-width: 620px; max-height: 92%; overflow: auto; border-radius: 18px 18px 0 0; padding: 18px max(16px, env(safe-area-inset-right, 0px)) calc(18px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); animation: up .18s ease-out }
+@media (min-width: 680px) { .scrim { align-items: center } .sheet { border-radius: 18px; max-height: 88% } }
+@keyframes up { from { transform: translateY(24px); opacity: .6 } to { transform: none; opacity: 1 } }
+@media (prefers-reduced-motion: reduce) { .sheet { animation: none } }
+.sheet h3 { margin: 0 0 4px; font-family: var(--f-display); font-size: 22px; font-weight: 650 }
+.sheet .sub { color: var(--muted); font-size: 13px; margin-bottom: 14px }
+.sheet .group { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px }
+.sheet .group h4 { margin: 0 0 8px; font-size: 14px; display: flex; gap: 8px; align-items: baseline }
+.sheet .group.r h4 { color: var(--recv) }
+.sheet .group.o h4 { color: var(--accent) }
+.greg { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; align-items: center; padding: 8px 0 }
+.greg + .greg { border-top: 1px solid var(--line) }
+.greg .bar { grid-column: 1 / -1; height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden }
+.greg .bar span { display: block; height: 100%; background: var(--accent) }
+.pill { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); white-space: nowrap }
+.pill.warn { background: var(--warn-bg); color: var(--warn-ink) }
+.pill.bad { background: color-mix(in srgb, var(--bad) 15%, transparent); color: var(--bad) }
+.stepper-row .nm .note { display: block; font-size: 12px }
+.firstlist { display: grid; gap: 2px }
+.first { display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: center; padding: 7px 4px; border-radius: 8px; cursor: pointer }
+.first:hover { background: var(--surface-2) }
+.first input { position: absolute; opacity: 0; pointer-events: none }
+.first .dot { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center }
+.first input:checked + .dot { border-color: var(--accent) }
+.first input:checked + .dot::after { content: ""; width: 12px; height: 12px; border-radius: 50%; background: var(--accent) }
+.first input:focus-visible + .dot { outline: 2px solid var(--accent); outline-offset: 2px }
+.first .nm .note { display: block; font-size: 12px }
+.fbox { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; margin-top: 8px; display: grid; gap: 8px }
+.fbox .lab { font-size: 13px; font-weight: 600 }
+.fbox .note { margin: 0 }
+.stepper-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 6px 0 }
+.stepper-row .nm { min-width: 0 }
+.stepper-row .nm .ml { display: block }
+.stepper { display: inline-grid; grid-template-columns: 38px 52px 38px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden }
+.stepper button { border: 0; background: var(--surface-2); font-size: 18px; height: 38px }
+.stepper input { border: 0; text-align: center; width: 100%; background: var(--surface); font-variant-numeric: tabular-nums; -moz-appearance: textfield }
+.stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0 }
+.field { display: grid; gap: 5px; margin-top: 10px }
+.field label { font-size: 13px; color: var(--muted) }
+.field input, .field select, .field textarea { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--surface); width: 100%; min-width: 0 }
+.field textarea { min-height: 64px; resize: vertical }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px }
+.sheet .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; flex-wrap: wrap }
+.sheet .actions .spacer { flex: 1 }
+
+/* personal */
+.accts { display: grid; gap: 0 }
+.acct { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 11px 2px; border-bottom: 1px solid var(--line); align-items: center; background: none; border-left: 0; border-right: 0; border-top: 0; text-align: left; width: 100% }
+.acct:last-child { border-bottom: 0 }
+.acct .k { font-size: 12px; color: var(--muted) }
+.acct .v { font-weight: 600 }
+.inout { display: grid; grid-template-columns: 1fr 1fr; gap: 10px }
+.inout .card { padding: 12px 14px }
+.inout .lab { font-size: 12px; color: var(--muted) }
+.inout .val { font-family: var(--f-display); font-size: 22px; font-weight: 650 }
+.inout .in .val { color: var(--good) } .inout .out .val { color: var(--bad) }
+.txn { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 10px 2px; border-bottom: 1px solid var(--line); width: 100%; background: none; border-left: 0; border-right: 0; border-top: 0; text-align: left }
+.txn:last-child { border-bottom: 0 }
+.txn .t { font-weight: 500 }
+.txn .s { font-size: 12.5px; color: var(--muted); grid-column: 1 }
+.txn .a { font-weight: 600; grid-row: 1 / 3; grid-column: 2; align-self: center }
+.txn .a.in { color: var(--good) } .txn .a.out { color: var(--bad) } .txn .a.x { color: var(--muted) }
+.dategrp { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; padding: 12px 2px 2px; font-weight: 600 }
+.emptystate { text-align: center; color: var(--muted); padding: 22px 10px; font-size: 14px }
+
+/* settings */
+.typerow { display: grid; grid-template-columns: 1fr 1fr 84px auto auto auto; gap: 6px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line) }
+.typerow input[type=text], .typerow input[type=number] { border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; background: var(--surface); min-width: 0; width: 100% }
+.typerow .ck { font-size: 12px; display: grid; justify-items: center; color: var(--muted) }
+.typehead { display: grid; grid-template-columns: 1fr 1fr 84px auto auto auto; gap: 6px; font-size: 12px; color: var(--muted) }
+@media (max-width: 520px) {
+  .typerow, .typehead { grid-template-columns: 1fr 40px 40px 44px }
+  .typerow .mlin { grid-column: 1 / 2; grid-row: 2 }
+  .typerow .ratein { grid-column: 2 / 5; grid-row: 2 }
+  .typehead .h-ml, .typehead .h-rate { display: none }
+}
+.note { font-size: 13px; color: var(--muted) }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(88px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; z-index: 60; font-size: 14px; box-shadow: var(--shadow); max-width: calc(100% - 32px) }
+.switch { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0 }
+.switch input { width: 20px; height: 20px; accent-color: var(--accent) }
+code.blob { display: block; max-height: 140px; overflow: auto; font-size: 11px; background: var(--surface-2); padding: 8px; border-radius: 8px; word-break: break-all; margin-top: 8px }
+</style>
+
+<div class="wrap" id="app"></div>
+<div id="layer"></div>
+
+<script>
+(() => {
+'use strict';
+
+/* ---------- Config ---------- */
+// Paste the OAuth Web Client ID from Google Cloud Console here before publishing the installed app.
+const GOOGLE_CLIENT_ID = '';
+const STORE_KEY = 'intentionally.v1';
+const BACKUP_NAME = 'intentionally-backup.json';
+
+const DEFAULT_TYPES = [
+  { id: 'ordinary', en: 'Ordinary Mass',   ml: 'സാധാരണ കുർബാന',          rate: 150,  recv: true,  off: true },
+  { id: 'solemn',   en: 'Solemn Mass',     ml: 'ആഘോഷപൂർവകമായ കുർബാന',   rate: 300,  recv: true,  off: true },
+  { id: 'raza',     en: 'Raza Mass',       ml: 'റാസ കുർബാന',             rate: 2500, recv: true,  off: true },
+  { id: 'nithya',   en: 'Foundation Mass', ml: 'നിത്യകുർബാന',             rate: 0,    recv: true,  off: true },
+  { id: 'gregorian',en: 'Gregorian Mass',  ml: 'ഗ്രിഗോറിയൻ കുർബാന',       rate: 7500, recv: true,  off: true },
+  { id: 'own',      en: 'Own Mass',        ml: 'തനതു കുർബാന',             rate: 0,    recv: false, off: true },
+  { id: 'vicar',    en: "Vicar's Mass",    ml: 'വികാരി കുർബാന',           rate: 0,    recv: false, off: true },
+  { id: 'bination', en: 'Bination',        ml: 'ബൈബനേഷൻ',                rate: 0,    recv: false, off: true },
+];
+const TYPES_REV = 2;
+const CATS = {
+  in:  ['Salary / allowance', 'Mass stipends', 'Gift', 'Ministry offering', 'Interest', 'Other income'],
+  out: ['Food', 'Travel & fuel', 'Phone & internet', 'Medical', 'Books & study', 'Clothing', 'Charity & alms', 'Family support', 'Household', 'Other'],
+};
+const ML = {
+  received: 'കടമേറ്റത്', offered: 'ചൊല്ലിയത്', remarks: 'കുറിപ്പുകൾ', opening: 'മുൻ ബാക്കി',
+  total: 'ആകെ', balance: 'ബാക്കി', handed: 'കൊടുത്തേൽപ്പിച്ചത്', date: 'തീയതി', month: 'മാസം', year: 'വർഷം',
+};
+const ML_MONTHS = ['ജനുവരി','ഫെബ്രുവരി','മാർച്ച്','ഏപ്രിൽ','മേയ്','ജൂൺ','ജൂലൈ','ഓഗസ്റ്റ്','സെപ്റ്റംബർ','ഒക്ടോബർ','നവംബർ','ഡിസംബർ'];
+
+/* ---------- Helpers ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = n => String(n).padStart(2, '0');
+const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+const monthKeyOf = iso => iso.slice(0, 7);
+const daysIn = k => { const [y, m] = k.split('-').map(Number); return new Date(y, m, 0).getDate(); };
+const shiftMonth = (k, n) => { const [y, m] = k.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
+const monthName = k => { const [y, m] = k.split('-').map(Number); return new Date(y, m - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }); };
+const weekday = (k, d) => { const [y, m] = k.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('en-IN', { weekday: 'short' }); };
+const money = n => '₹' + (Number(n) || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+const n0 = v => Number(v) || 0;
+const sumObj = o => Object.values(o || {}).reduce((a, b) => a + n0(b), 0);
+const ml = s => `<span class="ml">${esc(s)}</span>`;
+
+/* ---------- State ---------- */
+let S;
+const ui = { tab: 'mass', month: monthKeyOf(todayISO()), massView: 'days', pMonth: monthKeyOf(todayISO()) };
+
+function blank() {
+  return {
+    v: 1,
+    settings: { types: DEFAULT_TYPES.map(t => ({ ...t })), typesRev: TYPES_REV, showMl: true, gClientId: '' },
+    mass: {},
+    personal: { accounts: [{ id: 'cash', name: 'Cash in hand', kind: 'cash', opening: 0 }], txns: [] },
+    meta: { updatedAt: new Date().toISOString(), example: false, lastDriveBackup: null, driveEmail: null },
+  };
+}
+
+function sample() {
+  const s = blank();
+  s.meta.example = true;
+  const k = ui.month, prev = shiftMonth(k, -1);
+  s.mass[prev] = { days: {}, opening: { manual: true, counts: { ordinary: 6, solemn: 2 } } };
+  s.mass[prev].days[3] = { r: { ordinary: 10, raza: 1 }, o: { ordinary: 1, bination: 1 }, amt: 4000, rem: 'From parish office' };
+  s.mass[prev].days[4] = { r: {}, o: { vicar: 1, bination: 1 }, rem: '' };
+  s.mass[prev].days[5] = { r: {}, o: { solemn: 1, bination: 2 }, rem: '' };
+  s.mass[k] = { days: {} };
+  const today = Number(todayISO().slice(8));
+  const plan = [
+    [1, { ordinary: 5 }, { ordinary: 1 }, 750, 'Thomas family, 5 intentions'],
+    [2, {}, { own: 1 }, 0, 'All Souls'],
+    [3, { solemn: 2 }, { solemn: 1 }, 600, 'Death anniversary, Mathew K.'],
+    [4, {}, { vicar: 1, bination: 1 }, 0, 'Sunday'],
+    [5, { raza: 1 }, { ordinary: 1 }, 2500, ''],
+    [6, {}, { raza: 1, bination: 1 }, 0, 'Feast at chapel'],
+    [8, { ordinary: 3, gregorian: 1 }, { ordinary: 1 }, 7950, 'Gregorian for late Mary Joseph; 3 thanksgiving'],
+    [9, { nithya: 1 }, { gregorian: 1, bination: 1 }, 450, 'Foundation Mass, parish register'],
+    [10, {}, { gregorian: 1 }, 0, ''],
+  ].filter(p => p[0] <= Math.max(today, 3));
+  for (const [d, r, o, amt, rem] of plan) s.mass[k].days[d] = { r, o, amt, rem };
+  if (s.mass[k].days[9]) s.mass[k].days[9].fk = 'solemn';
+  s.mass[k].handed = { counts: { ordinary: 2 }, rem: 'Receipt no. 214' };
+  s.personal.accounts = [
+    { id: 'cash', name: 'Cash in hand', kind: 'cash', opening: 3200 },
+    { id: 'sbi', name: 'SBI Savings', kind: 'bank', opening: 48500 },
+    { id: 'fed', name: 'Federal Bank', kind: 'bank', opening: 12000 },
+  ];
+  const d = n => `${k}-${pad(Math.min(n, today || 1))}`;
+  s.personal.txns = [
+    { id: uid(), date: d(1), kind: 'in', acct: 'sbi', cat: 'Salary / allowance', amt: 9000, note: 'Monthly allowance' },
+    { id: uid(), date: d(2), kind: 'out', acct: 'cash', cat: 'Travel & fuel', amt: 450, note: 'Petrol' },
+    { id: uid(), date: d(3), kind: 'in', acct: 'cash', cat: 'Mass stipends', amt: 1200, note: '' },
+    { id: uid(), date: d(5), kind: 'xfer', acct: 'sbi', to: 'cash', amt: 2000, note: 'ATM withdrawal' },
+    { id: uid(), date: d(6), kind: 'out', acct: 'sbi', cat: 'Phone & internet', amt: 299, note: 'Recharge' },
+    { id: uid(), date: d(8), kind: 'out', acct: 'cash', cat: 'Charity & alms', amt: 500, note: '' },
+    { id: uid(), date: d(9), kind: 'out', acct: 'cash', cat: 'Medical', amt: 380, note: 'Pharmacy' },
+  ];
+  return s;
+}
+
+function load() {
+  try { const raw = localStorage.getItem(STORE_KEY); if (raw) return migrate(JSON.parse(raw)); } catch (e) {}
+  return sample();
+}
+function migrate(s) {
+  const b = blank();
+  const typesRev = s.settings?.typesRev || 1;
+  s.settings = { ...b.settings, ...(s.settings || {}) };
+  if (!Array.isArray(s.settings.types) || !s.settings.types.length) s.settings.types = b.settings.types;
+  // First preview guessed the columns from a photo; swap to the book's real columns if untouched.
+  if (s.settings.types.some(t => t.id === 'udaya' && t.en === 'Udaya Mass')) s.settings.types = b.settings.types;
+  if (typesRev < TYPES_REV) {
+    const T = s.settings.types;
+    for (const t of T) { const d = DEFAULT_TYPES.find(x => x.id === t.id); if (t.rate == null) t.rate = d ? d.rate : 0; }
+    const f = T.find(t => t.id === 'nithya' && t.en === 'Perpetual Mass'); if (f) f.en = 'Foundation Mass';
+    if (!T.some(t => t.id === 'gregorian')) { const i = T.findIndex(t => t.id === 'nithya'); T.splice(i >= 0 ? i + 1 : T.length, 0, { ...DEFAULT_TYPES.find(t => t.id === 'gregorian') }); }
+    s.settings.typesRev = TYPES_REV;
+  }
+  s.mass = s.mass || {};
+  s.personal = s.personal || b.personal;
+  s.personal.accounts = s.personal.accounts || [];
+  s.personal.txns = s.personal.txns || [];
+  s.meta = { ...b.meta, ...(s.meta || {}) };
+  return s;
+}
+function save() {
+  S.meta.updatedAt = new Date().toISOString();
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { toast('Could not save on this device. Storage may be full or blocked.'); }
+}
+
+/* ---------- Mass ledger math ---------- */
+const recvTypes = () => S.settings.types.filter(t => t.recv);
+const offTypes = () => S.settings.types.filter(t => t.off);
+const monthData = k => (S.mass[k] ||= { days: {} });
+
+function monthTotals(k) {
+  const M = S.mass[k] || { days: {} };
+  const r = {}, o = {}; let amt = 0;
+  for (const day of Object.values(M.days || {})) {
+    for (const [t, v] of Object.entries(day.r || {})) r[t] = n0(r[t]) + n0(v);
+    for (const [t, v] of Object.entries(day.o || {})) o[t] = n0(o[t]) + n0(v);
+    amt += n0(day.amt);
+  }
+  return { r, o, h: { ...(M.handed?.counts || {}) }, amt };
+}
+// Binations are usually Ordinary Masses, so each one uses up an Ordinary intention the priest holds.
+const BIN_USES = 'ordinary';
+const offeredOf = (tot, id) => n0(tot.o[id]) + (id === BIN_USES ? n0(tot.o.bination) : 0);
+// One Gregorian intention is a set of 30 Masses on consecutive days, to be finished within 40 days.
+const GREGORIAN = 'gregorian', GREG_SET = 30, GREG_DAYS = 40;
+const perIntention = id => id === GREGORIAN ? GREG_SET : 1;
+function closingFrom(open, tot) {
+  const out = {};
+  for (const t of recvTypes()) out[t.id] = n0(open[t.id]) + n0(tot.r[t.id]) * perIntention(t.id) - offeredOf(tot, t.id) - n0(tot.h[t.id]);
+  return out;
+}
+// Matches offered Gregorian Masses to received sets, oldest first, and returns the sets not yet finished.
+function openGregorians() {
+  const keys = Object.keys(S.mass).sort();
+  const sets = []; let pool = 0, firstOpen = null;
+  for (const k of keys) {
+    const M = S.mass[k];
+    if (firstOpen == null && M.opening?.manual) firstOpen = n0(M.opening.counts?.[GREGORIAN]);
+    pool += n0(M.handed?.counts?.[GREGORIAN]);
+    for (const d of Object.keys(M.days || {}).map(Number).sort((a, b) => a - b)) {
+      const e = M.days[d];
+      for (let i = 0; i < n0(e.r?.[GREGORIAN]); i++) sets.push({ date: `${k}-${pad(d)}`, rem: e.rem || '' });
+      pool += n0(e.o?.[GREGORIAN]);
+    }
+  }
+  pool -= n0(firstOpen);
+  return sets.map(st => { const said = Math.max(0, Math.min(GREG_SET, pool)); pool -= said; return { ...st, said }; }).filter(st => st.said < GREG_SET);
+}
+function renderGregorians() {
+  const open = openGregorians();
+  if (!open.length || !typeById(GREGORIAN)) return '';
+  const today = new Date(todayISO() + 'T00:00');
+  return `<div class="card"><div class="section-h" style="margin:0 0 6px"><h3>Gregorian Masses in progress</h3></div>${open.map(st => {
+    const start = new Date(st.date + 'T00:00'), due = new Date(start); due.setDate(due.getDate() + GREG_DAYS);
+    const left = Math.round((due - today) / 86400000);
+    const state = left < 0 ? `<span class="pill bad">${-left} days overdue</span>` : left <= 7 ? `<span class="pill warn">${left} days left</span>` : `<span class="pill">${left} days left</span>`;
+    return `<div class="greg"><div><b class="num">${st.said} of ${GREG_SET}</b> said · received ${start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}, finish by ${due.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}${st.rem ? `<div class="note">${esc(st.rem)}</div>` : ''}</div>${state}
+      <div class="bar"><span style="width:${st.said / GREG_SET * 100}%"></span></div></div>`;
+  }).join('')}</div>`;
+}
+function openingOf(k) {
+  const M = S.mass[k];
+  if (M?.opening?.manual) return { ...M.opening.counts };
+  const earlier = Object.keys(S.mass).filter(x => x < k).sort();
+  let bal = {};
+  for (const mk of earlier) {
+    const MM = S.mass[mk];
+    if (MM?.opening?.manual) bal = { ...MM.opening.counts };
+    bal = closingFrom(bal, monthTotals(mk));
+  }
+  return bal;
+}
+function isEmptyMonth(k) {
+  const M = S.mass[k];
+  if (!M) return true;
+  return !Object.keys(M.days || {}).length && !sumObj(M.handed?.counts) && !M.opening?.manual;
+}
+
+/* ---------- Personal math ---------- */
+function acctBalance(id) {
+  const a = S.personal.accounts.find(x => x.id === id);
+  let b = n0(a?.opening);
+  for (const t of S.personal.txns) {
+    if (t.kind === 'in' && t.acct === id) b += n0(t.amt);
+    if (t.kind === 'out' && t.acct === id) b -= n0(t.amt);
+    if (t.kind === 'xfer') { if (t.acct === id) b -= n0(t.amt); if (t.to === id) b += n0(t.amt); }
+  }
+  return b;
+}
+const acctName = id => S.personal.accounts.find(a => a.id === id)?.name || 'Removed account';
+
+/* ---------- Render ---------- */
+const ICONS = {
+  mass: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H19v15H5.5A1.5 1.5 0 0 0 4 19.5z"/><path d="M4 19.5A1.5 1.5 0 0 0 5.5 21H19v-3"/><path d="M11.5 6.5v7M9 9h5"/></svg>',
+  personal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 14.5h2"/><path d="M6 6V5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>',
+  settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+};
+
+function render() {
+  document.body.classList.toggle('no-ml', !S.settings.showMl);
+  const app = $('#app');
+  let html = `<header class="top"><div class="brand">Intentionally<small>Mass book &amp; personal accounts</small></div></header>`;
+  if (S.meta.example) html += `<div class="banner"><span>These are example entries so you can see how the app works.</span><button class="btn small" data-act="clear-examples">Clear examples and start</button></div>`;
+  html += ui.tab === 'mass' ? renderMass() : ui.tab === 'personal' ? renderPersonal() : renderSettings();
+  app.innerHTML = html;
+  let nav = $('nav.tabs');
+  if (!nav) { nav = document.createElement('nav'); nav.className = 'tabs'; document.body.appendChild(nav); }
+  nav.innerHTML = `<div class="in">${[['mass', 'Mass book'], ['personal', 'Personal'], ['settings', 'Settings']].map(([id, l]) =>
+    `<button data-act="tab" data-v="${id}" ${ui.tab === id ? 'aria-current="page"' : ''}>${ICONS[id]}<span>${l}</span></button>`).join('')}</div>`;
+  let fab = $('#fab');
+  if (ui.tab === 'settings') { fab?.remove(); }
+  else {
+    if (!fab) { fab = document.createElement('button'); fab.id = 'fab'; fab.className = 'fab'; fab.textContent = '+'; document.body.appendChild(fab); }
+    fab.dataset.act = ui.tab === 'mass' ? 'add-today' : 'add-txn';
+    fab.setAttribute('aria-label', ui.tab === 'mass' ? 'Add entry for today' : 'Add transaction');
+  }
+}
+
+function renderMass() {
+  const k = ui.month, [y, m] = k.split('-').map(Number);
+  const open = openingOf(k), tot = monthTotals(k), close = closingFrom(open, tot);
+  const pending = sumObj(close);
+  const said = sumObj(tot.o);
+  let h = `<div class="monthbar">
+    <button class="iconbtn" data-act="month" data-v="-1" aria-label="Previous month">‹</button>
+    <h2>${esc(monthName(k))}<span class="ml">${ML.month}: ${ML_MONTHS[m - 1]} · ${ML.year}: ${y}</span></h2>
+    <button class="iconbtn" data-act="month" data-v="1" aria-label="Next month">›</button></div>`;
+
+  const limit = n0(S.settings.holdLimit) || 100;
+  h += `<div class="stack">${pending > limit ? `<div class="banner"><span>You are holding <b>${pending}</b> intentions. Only ${limit} should be kept at a time. Hand over the extra ${pending - limit}.</span><button class="btn small" data-act="edit-handed">Hand over</button></div>` : ''}<div class="card hero">
+      <div><div class="label">Intentions still to offer</div><div class="big num">${pending}</div></div>
+      <div class="side num"><span>Received <b>${Object.entries(tot.r).reduce((a, [id, n]) => a + n0(n) * perIntention(id), 0)}</b></span><span>Offered <b>${said}</b></span><span>Stipends <b>${money(tot.amt)}</b></span><span>Still owed <b>${money(recvTypes().reduce((a, t) => a + Math.max(0, n0(close[t.id])) * (t.id === FOUNDATION ? foundationRate() : n0(t.rate) / perIntention(t.id)), 0))}</b></span></div>
+    </div>`;
+
+  // summary by type
+  h += `<div class="card scroll"><table class="sumtable num"><thead><tr>
+      <th>Mass type</th><th>Balance</th><th>Opening</th><th>Recd.${ml(ML.received)}</th><th>Offered${ml(ML.offered)}</th><th>Handed</th>
+    </tr></thead><tbody>`;
+  for (const t of recvTypes()) {
+    const b = close[t.id];
+    h += `<tr><td>${esc(t.en)} ${ml(t.ml)}</td><td class="bal ${b < 0 ? 'neg' : ''}">${b}</td><td>${n0(open[t.id])}</td><td>${n0(tot.r[t.id]) * perIntention(t.id)}</td><td>${offeredOf(tot, t.id)}</td><td>${n0(tot.h[t.id])}</td></tr>`;
+  }
+  const extra = offTypes().filter(t => !t.recv);
+  if (extra.length) h += `<tr><td colspan="6" class="note" style="text-align:left;padding-top:10px">Also offered this month: ${extra.map(t => `${esc(t.en)} <b>${n0(tot.o[t.id])}</b>`).join(' · ')}</td></tr>`;
+  if (typeById(BINATION)) {
+    const yb = yearBinations(y), rate = n0(typeById('ordinary')?.rate) || 150;
+    h += `<tr><td colspan="6" class="note" style="text-align:left">Binations in ${y}: <b>${yb}</b> × ${money(rate)} = <b>${money(yb * rate)}</b></td></tr>`;
+  }
+  h += `</tbody></table></div>`;
+
+  h += `<div class="row between">
+      <div class="seg" role="group" aria-label="View"><button data-act="mview" data-v="days" aria-pressed="${ui.massView === 'days'}">Days</button><button data-act="mview" data-v="book" aria-pressed="${ui.massView === 'book'}">Book page</button></div>
+      <div class="row"><button class="btn small" data-act="edit-opening">Opening balance</button><button class="btn small" data-act="edit-handed">Handed over</button></div>
+    </div>`;
+
+  h += renderGregorians();
+  h += ui.massView === 'days' ? renderDays(k) : renderBook(k, open, tot, close);
+  h += `</div>`;
+  return h;
+}
+
+function typeById(id) { return S.settings.types.find(t => t.id === id); }
+
+function yearBinations(y) {
+  let n = 0;
+  for (const [k, M] of Object.entries(S.mass)) if (k.startsWith(y + '-')) for (const e of Object.values(M.days || {})) n += splitOffered(e.o).bin;
+  return n;
+}
+
+function renderDays(k) {
+  const M = S.mass[k] || { days: {} };
+  const n = daysIn(k), tISO = todayISO();
+  let h = `<div class="card" style="padding:0"><div class="days">`;
+  for (let d = 1; d <= n; d++) {
+    const e = M.days?.[d];
+    const isToday = `${k}-${pad(d)}` === tISO;
+    let chips = '';
+    if (e) {
+      const nm = t => esc(typeById(t)?.en || t) + (t === FOUNDATION && e.fk ? ` (${esc(typeById(e.fk)?.en.replace(/ Mass$/, '') || e.fk)})` : '');
+      for (const [t, v] of Object.entries(e.r || {})) if (n0(v)) chips += `<span class="chip r">+${v} ${nm(t)}${t === GREGORIAN ? ` (${v * GREG_SET} Masses)` : ''}</span>`;
+      const off = splitOffered(e.o);
+      if (off.first) chips += `<span class="chip o">✓ ${nm(off.first)}</span>`;
+      if (off.bin) chips += `<span class="chip o">+${off.bin} Bination</span>`;
+      if (n0(e.amt)) chips += `<span class="chip m">${money(e.amt)}</span>`;
+    }
+    h += `<button class="day ${isToday ? 'today' : ''}" data-act="edit-day" data-v="${d}">
+      <span class="dn num">${d}<small>${weekday(k, d)}</small></span>
+      <span class="chips">${chips || `<span class="empty">${isToday ? 'Today · tap to add' : '—'}</span>`}</span>
+      <span class="go" aria-hidden="true">›</span>
+      ${e?.rem ? `<span class="rem">${esc(e.rem)}</span>` : ''}
+    </button>`;
+  }
+  h += `</div></div><p class="note" style="margin:2px">Green ＋ is received ${ml(ML.received)}. Red ✓ is offered ${ml(ML.offered)}.</p>`;
+  return h;
+}
+
+function renderBook(k, open, tot, close) {
+  const M = S.mass[k] || { days: {} };
+  const R = recvTypes(), O = offTypes(), n = daysIn(k);
+  const th = t => `<th>${esc(t.en)}<span class="ml">${esc(t.ml)}</span></th>`;
+  const cell = v => n0(v) ? `<td>${v}</td>` : `<td class="z">·</td>`;
+  let h = `<div class="card scroll" style="padding:8px"><table class="book"><thead>
+    <tr><th rowspan="2">Date<span class="ml">${ML.date}</span></th><th class="side-r" colspan="${R.length + 1}">Received <span class="ml">${ML.received}</span></th>
+      <th rowspan="2">Notes</th><th class="side-o" colspan="${O.length}">Offered <span class="ml">${ML.offered}</span></th></tr>
+    <tr>${R.map(th).join('')}<th>Stipend ₹</th>${O.map(th).join('')}</tr></thead><tbody>`;
+  h += `<tr class="foot"><td class="lbl">Opening</td>${R.map(t => cell(open[t.id])).join('')}<td></td><td></td>${O.map(() => '<td></td>').join('')}</tr>`;
+  for (let d = 1; d <= n; d++) {
+    const e = M.days?.[d] || {};
+    h += `<tr class="dayrow" data-act="edit-day" data-v="${d}"><td>${d}</td>${R.map(t => cell(e.r?.[t.id])).join('')}<td>${n0(e.amt) ? n0(e.amt).toLocaleString('en-IN') : ''}</td><td class="remc">${esc(e.rem || '')}</td>${O.map(t => t.id === BINATION ? cell(splitOffered(e.o).bin) : splitOffered(e.o).first === t.id ? '<td>●</td>' : cell(0)).join('')}</tr>`;
+  }
+  h += `<tr class="dayrow" data-act="edit-handed"><td class="lbl" colspan="${R.length + 3}" style="text-align:right">Handed over</td>${O.map(t => cell(tot.h[t.id])).join('')}</tr>`;
+  h += `<tr class="foot"><td class="lbl">Total</td>${R.map(t => cell(tot.r[t.id])).join('')}<td>${tot.amt ? tot.amt.toLocaleString('en-IN') : ''}</td><td></td>${O.map(t => cell(n0(tot.o[t.id]) + n0(tot.h[t.id]))).join('')}</tr>`;
+  h += `<tr class="foot"><td class="lbl">Balance</td>${R.map(t => `<td class="${close[t.id] < 0 ? 'neg' : ''}">${close[t.id]}</td>`).join('')}<td></td><td></td>${O.map(() => '<td></td>').join('')}</tr>`;
+  h += `</tbody></table></div><p class="note" style="margin:2px">Tap a row to edit that day. Scroll sideways to see the offered side.</p>`;
+  return h;
+}
+
+function renderPersonal() {
+  const k = ui.pMonth;
+  const accts = S.personal.accounts;
+  const total = accts.reduce((a, x) => a + acctBalance(x.id), 0);
+  const bank = accts.filter(a => a.kind === 'bank').reduce((a, x) => a + acctBalance(x.id), 0);
+  const txns = S.personal.txns.filter(t => monthKeyOf(t.date) === k).sort((a, b) => b.date.localeCompare(a.date));
+  const inc = txns.filter(t => t.kind === 'in').reduce((a, t) => a + n0(t.amt), 0);
+  const exp = txns.filter(t => t.kind === 'out').reduce((a, t) => a + n0(t.amt), 0);
+
+  let h = `<div class="stack"><div class="card hero">
+      <div><div class="label">Total money</div><div class="big num">${money(total)}</div></div>
+      <div class="side num"><span>In banks <b>${money(bank)}</b></span><span>Cash <b>${money(total - bank)}</b></span></div></div>`;
+  h += `<div class="section-h"><h3>Accounts</h3><button class="btn small" data-act="add-acct">Add account</button></div>
+    <div class="card" style="padding:4px 14px"><div class="accts">${accts.map(a => {
+      const b = acctBalance(a.id);
+      return `<button class="acct" data-act="edit-acct" data-v="${a.id}"><span><span>${esc(a.name)}</span><br><span class="k">${a.kind === 'bank' ? 'Bank account' : 'Cash'}</span></span><span class="v num ${b < 0 ? 'neg' : ''}">${money(b)}</span></button>`;
+    }).join('') || '<div class="emptystate">Add your bank accounts and cash.</div>'}</div></div>`;
+
+  h += `<div class="monthbar" style="margin:6px 0 0">
+    <button class="iconbtn" data-act="pmonth" data-v="-1" aria-label="Previous month">‹</button>
+    <h2 style="font-size:19px">${esc(monthName(k))}</h2>
+    <button class="iconbtn" data-act="pmonth" data-v="1" aria-label="Next month">›</button></div>`;
+  h += `<div class="inout"><div class="card in"><div class="lab">Income this month</div><div class="val num">${money(inc)}</div></div>
+    <div class="card out"><div class="lab">Spent this month</div><div class="val num">${money(exp)}</div></div></div>`;
+
+  h += `<div class="card" style="padding:4px 14px">`;
+  if (!txns.length) h += `<div class="emptystate">No transactions in ${esc(monthName(k))}. Tap + to add income, an expense or a transfer.</div>`;
+  let last = '';
+  for (const t of txns) {
+    if (t.date !== last) {
+      last = t.date;
+      h += `<div class="dategrp">${new Date(t.date + 'T00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}</div>`;
+    }
+    const title = t.kind === 'xfer' ? `Transfer to ${esc(acctName(t.to))}` : esc(t.cat || (t.kind === 'in' ? 'Income' : 'Expense'));
+    const sub = [t.kind === 'xfer' ? `From ${esc(acctName(t.acct))}` : esc(acctName(t.acct)), esc(t.note || '')].filter(Boolean).join(' · ');
+    const cls = t.kind === 'in' ? 'in' : t.kind === 'out' ? 'out' : 'x';
+    const sign = t.kind === 'in' ? '+' : t.kind === 'out' ? '−' : '';
+    h += `<button class="txn" data-act="edit-txn" data-v="${t.id}"><span class="t">${title}</span><span class="a num ${cls}">${sign}${money(t.amt)}</span><span class="s">${sub}</span></button>`;
+  }
+  h += `</div></div>`;
+  return h;
+}
+
+function renderSettings() {
+  const types = S.settings.types;
+  const inArtifact = !/^https?:$/.test(location.protocol) || /claude\.ai|claudeusercontent|anthropic/.test(location.hostname);
+  const cid = GOOGLE_CLIENT_ID || S.settings.gClientId;
+  let h = `<div class="stack">`;
+
+  h += `<div class="section-h"><h3>Mass types</h3></div><div class="card">
+    <p class="note" style="margin-top:0">These are the columns of your Mass book. Rename them to match your book, and set the usual stipend for each one so amounts fill in by themselves. Tick <b>Recv</b> for intentions you receive and must offer, and <b>Off</b> for Masses you record as offered.</p>
+    <div class="typehead"><span>English</span><span class="h-ml">Malayalam</span><span class="h-rate">Stipend ₹</span><span>Recv</span><span>Off</span><span></span></div>
+    ${types.map((t, i) => `<div class="typerow" data-i="${i}">
+      <input type="text" id="ten-${t.id}" value="${esc(t.en)}" data-act="type-en" aria-label="English name">
+      <input type="text" class="mlin" id="tml-${t.id}" value="${esc(t.ml)}" data-act="type-ml" aria-label="Malayalam name">
+      <input type="number" class="ratein" inputmode="numeric" min="0" id="trate-${t.id}" value="${t.id === FOUNDATION ? '' : n0(t.rate) || ''}" placeholder="${t.id === FOUNDATION ? 'Usual + 50%' : '₹'}" ${t.id === FOUNDATION ? 'disabled' : ''} data-act="type-rate" aria-label="Stipend for ${esc(t.en)} in rupees">
+      <label class="ck"><input type="checkbox" data-act="type-recv" ${t.recv ? 'checked' : ''}></label>
+      <label class="ck"><input type="checkbox" data-act="type-off" ${t.off ? 'checked' : ''}></label>
+      <button class="btn small" data-act="type-del" aria-label="Remove ${esc(t.en)}">✕</button></div>`).join('')}
+    <div class="row" style="margin-top:12px"><button class="btn small" data-act="type-add">Add Mass type</button><button class="btn small" data-act="type-reset">Restore default list</button></div>
+    <label class="switch"><span>Show Malayalam labels</span><input type="checkbox" id="showml" data-act="show-ml" ${S.settings.showMl ? 'checked' : ''}></label>
+  </div>`;
+
+  h += `<div class="section-h"><h3>Backup</h3></div><div class="card">
+    <p class="note" style="margin-top:0">Everything is stored only on this phone. Keep a backup so nothing is lost if the phone is changed or reset.</p>
+    <div class="row"><button class="btn" data-act="export">Save backup file</button><label class="btn" for="importfile">Restore from file</label>
+    <input type="file" id="importfile" accept="application/json,.json" hidden></div>
+    <div id="exportbox"></div>
+  </div>`;
+
+  h += `<div class="section-h"><h3>Google Drive</h3></div><div class="card">
+    <p class="note" style="margin-top:0">Optional. Sign in with Google to keep a backup copy in a private app folder on your own Google Drive. Nobody else can see it.</p>`;
+  if (inArtifact) h += `<p class="note"><b>Works in the installed app.</b> This preview cannot reach Google.</p>`;
+  else if (!cid) h += `<p class="note">Google sign-in is not set up yet. Add a Google OAuth Client ID below.</p>
+      <div class="field"><label for="gcid">Google OAuth Client ID</label><input id="gcid" data-act="gcid" placeholder="xxxx.apps.googleusercontent.com" value="${esc(S.settings.gClientId)}"></div>`;
+  h += `<div class="row" style="margin-top:10px">
+      <button class="btn primary" data-act="g-backup" ${inArtifact || !cid ? 'disabled' : ''}>Back up to Drive</button>
+      <button class="btn" data-act="g-restore" ${inArtifact || !cid ? 'disabled' : ''}>Restore from Drive</button></div>
+    <p class="note">${S.meta.driveEmail ? `Signed in as ${esc(S.meta.driveEmail)}. ` : ''}${S.meta.lastDriveBackup ? `Last Drive backup: ${new Date(S.meta.lastDriveBackup).toLocaleString('en-IN')}` : 'No Drive backup yet.'}</p>
+  </div>`;
+
+  h += `<div class="section-h"><h3>Data</h3></div><div class="card">
+    <p class="note" style="margin-top:0">Last saved ${new Date(S.meta.updatedAt).toLocaleString('en-IN')}.</p>
+    <button class="btn danger" data-act="erase">Erase all data on this phone</button></div>`;
+  h += `</div>`;
+  return h;
+}
+
+/* ---------- Sheets ---------- */
+function openSheet(html, onMount) {
+  const layer = $('#layer');
+  layer.innerHTML = `<div class="scrim" data-act="scrim"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`;
+  onMount && onMount($('.sheet', layer));
+  const f = $('.sheet input:not([type=hidden]), .sheet select', layer);
+  if (f && matchMedia('(pointer:fine)').matches) f.focus();
+}
+const closeSheet = () => { $('#layer').innerHTML = ''; };
+
+function stepper(name, val) {
+  return `<span class="stepper"><button type="button" data-step="-1" aria-label="Less">−</button><input type="number" inputmode="numeric" min="0" name="${name}" id="st-${name}" value="${n0(val) || ''}" placeholder="0"><button type="button" data-step="1" aria-label="More">+</button></span>`;
+}
+function readCounts(sheet, prefix) {
+  const out = {};
+  sheet.querySelectorAll(`input[name^="${prefix}"]`).forEach(i => { const v = Math.max(0, Math.round(n0(i.value))); if (v) out[i.name.slice(prefix.length)] = v; });
+  return out;
+}
+
+// A Foundation Mass is said as Ordinary, Solemn or Raza; the priest receives 50% above that kind's usual stipend.
+const FOUNDATION = 'nithya';
+const FOUNDATION_KINDS = ['ordinary', 'solemn', 'raza'];
+const foundationRate = fk => Math.round(n0(typeById(fk || 'ordinary')?.rate) * 1.5);
+function stipendFor(counts, fk) {
+  return Object.entries(counts || {}).reduce((a, [id, n]) => a + n0(n) * (id === FOUNDATION ? foundationRate(fk) : n0(typeById(id)?.rate)), 0);
+}
+function foundationBox(fk) {
+  const kinds = FOUNDATION_KINDS.filter(typeById);
+  return `<div class="fbox" id="fbox"><div class="lab">This Foundation Mass is said as</div>
+    <div class="seg" role="group" aria-label="Foundation Mass kind">${kinds.map(k => `<button type="button" data-fk="${k}" aria-pressed="${(fk || 'ordinary') === k}">${esc(typeById(k).en.replace(/ Mass$/, ''))}</button>`).join('')}</div>
+    <p class="note">For a Foundation Mass the priest receives 50% more than the usual stipend. ${kinds.map(k => `${esc(typeById(k).en)}: ${money(typeById(k).rate)} + 50% = <b>${money(foundationRate(k))}</b>`).join('. ')}.</p></div>`;
+}
+function refreshStipend(sh) {
+  const r = readCounts(sh, 'r_'), o = readOffered(sh);
+  const fb = $('#fbox', sh); if (fb) fb.hidden = !(r[FOUNDATION] || o[FOUNDATION]);
+  const amt = $('#amt', sh);
+  if (amt && amt.dataset.auto === '1') amt.value = stipendFor(r, sh.dataset.fk) || '';
+}
+// Only one Mass a day counts as the day's Mass; every Mass after it is a bination.
+const BINATION = 'bination';
+function splitOffered(o) {
+  const entries = Object.entries(o || {}).filter(([id, n]) => id !== BINATION && n0(n) > 0);
+  const extra = entries.reduce((a, [, n]) => a + n0(n), 0) - (entries.length ? 1 : 0);
+  return { first: entries[0]?.[0] || '', bin: n0(o?.[BINATION]) + Math.max(0, extra) };
+}
+function readOffered(sh) {
+  const first = sh.querySelector('input[name="first"]:checked')?.value || '';
+  const bin = Math.max(0, Math.round(n0($('#st-o_bination', sh)?.value)));
+  const o = {}; if (first) o[first] = 1; if (bin) o[BINATION] = bin;
+  return o;
+}
+function dayEditor(d) {
+  const k = ui.month, M = monthData(k), e = M.days[d] || {};
+  const R = recvTypes(), O = offTypes().filter(t => t.id !== BINATION), off = splitOffered(e.o);
+  openSheet(`<h3>${d} ${esc(monthName(k))}</h3><div class="sub">${weekday(k, d)}</div>
+    <div class="group r"><h4>Received ${ml(ML.received)}</h4>
+      ${R.map(t => `<div class="stepper-row"><span class="nm">${esc(t.en)} ${ml(t.ml)}${t.id === GREGORIAN ? '<span class="note">1 intention = 30 Masses</span>' : ''}</span>${stepper('r_' + t.id, e.r?.[t.id])}</div>`).join('')}
+      ${typeById(FOUNDATION) ? foundationBox(e.fk) : ''}
+      <div class="field"><label for="amt">Stipend received (₹)</label><input id="amt" type="number" inputmode="decimal" min="0" value="${n0(e.amt) || ''}" placeholder="0" data-auto="${e.amt == null || n0(e.amt) === stipendFor(e.r, e.fk) ? 1 : 0}"><span class="note">Worked out from your stipend rates. Change it if you received a different amount.</span></div>
+    </div>
+    <div class="group o"><h4>Offered ${ml(ML.offered)}</h4>
+      <p class="note" style="margin:0 0 4px">Tick the first Mass you offered today. Every Mass after it is a bination.</p>
+      <div class="firstlist">
+        ${O.map(t => `<label class="first"><input type="radio" name="first" value="${t.id}" ${off.first === t.id ? 'checked' : ''}><span class="dot" aria-hidden="true"></span><span class="nm">${esc(t.en)} ${ml(t.ml)}${t.id === GREGORIAN ? '<span class="note">One of the 30 days</span>': ''}</span></label>`).join('')}
+        <label class="first"><input type="radio" name="first" value="" ${off.first ? '' : 'checked'}><span class="dot" aria-hidden="true"></span><span class="nm">No Mass offered</span></label>
+      </div>
+      ${typeById(BINATION) ? `<div class="stepper-row" style="margin-top:6px"><span class="nm">${esc(typeById(BINATION).en)} ${ml(typeById(BINATION).ml)}<span class="note">Masses after the first. Each one uses up one Ordinary Mass intention you hold.</span></span>${stepper('o_' + BINATION, off.bin)}</div>` : ''}
+    </div>
+    <div class="field"><label for="rem">Notes</label><textarea id="rem" placeholder="Name of the person, intention, place">${esc(e.rem || '')}</textarea></div>
+    <div class="actions">${M.days[d] ? '<button class="btn danger" data-act="day-clear">Clear day</button>' : ''}<span class="spacer"></span><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="day-save" data-v="${d}">Save</button></div>`,
+  sh => {
+    sh.dataset.fk = e.fk || 'ordinary';
+    sh.querySelectorAll('[data-fk]').forEach(b => b.addEventListener('click', () => {
+      sh.dataset.fk = b.dataset.fk;
+      sh.querySelectorAll('[data-fk]').forEach(x => x.setAttribute('aria-pressed', x === b));
+      refreshStipend(sh);
+    }));
+    sh.querySelectorAll('input[name="first"]').forEach(i => i.addEventListener('change', () => refreshStipend(sh)));
+    const fb = $('#fbox', sh); if (fb) fb.hidden = !(n0(e.r?.[FOUNDATION]) || off.first === FOUNDATION);
+  });
+}
+function saveDay(d) {
+  const sh = $('.sheet'), M = monthData(ui.month);
+  const entry = { r: readCounts(sh, 'r_'), o: readOffered(sh), amt: n0($('#amt', sh).value), rem: $('#rem', sh).value.trim() };
+  if (entry.r[FOUNDATION] || entry.o[FOUNDATION]) entry.fk = sh.dataset.fk || 'ordinary';
+  if (!sumObj(entry.r) && !sumObj(entry.o) && !entry.amt && !entry.rem) delete M.days[d]; else M.days[d] = entry;
+  save(); closeSheet(); render(); toast('Saved');
+}
+
+function handedEditor() {
+  const M = monthData(ui.month), hd = M.handed || {};
+  openSheet(`<h3>Handed over</h3><div class="sub">${esc(monthName(ui.month))}. Intentions you handed over. They leave your balance.</div>
+    <div class="group o">${recvTypes().map(t => `<div class="stepper-row"><span class="nm">${esc(t.en)} ${ml(t.ml)}</span>${stepper('h_' + t.id, hd.counts?.[t.id])}</div>`).join('')}</div>
+    <div class="field"><label for="hrem">Note</label><input id="hrem" value="${esc(hd.rem || '')}" placeholder="Date, receipt number"></div>
+    <div class="actions"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="handed-save">Save</button></div>`);
+}
+function openingEditor() {
+  const k = ui.month, M = monthData(k), cur = openingOf(k), manual = !!M.opening?.manual;
+  openSheet(`<h3>Opening balance</h3><div class="sub">${esc(monthName(k))}. ${manual ? 'You set this by hand.' : 'Carried forward from earlier months.'} Set it by hand for your first month, using the balance from your paper book.</div>
+    <div class="group r">${recvTypes().map(t => `<div class="stepper-row"><span class="nm">${esc(t.en)} ${ml(t.ml)}</span>${stepper('p_' + t.id, cur[t.id])}</div>`).join('')}</div>
+    <div class="actions">${manual ? '<button class="btn" data-act="opening-auto">Carry forward automatically</button>' : ''}<span class="spacer"></span><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="opening-save">Save</button></div>`);
+}
+
+function txnEditor(id) {
+  const t = id ? S.personal.txns.find(x => x.id === id) : { kind: 'out', date: todayISO(), acct: S.personal.accounts[0]?.id, amt: '', cat: '', note: '' };
+  if (!S.personal.accounts.length) { toast('Add an account first'); return acctEditor(); }
+  const opts = (sel) => S.personal.accounts.map(a => `<option value="${a.id}" ${a.id === sel ? 'selected' : ''}>${esc(a.name)}</option>`).join('');
+  const catOpts = (kind, sel) => (CATS[kind] || []).map(c => `<option ${c === sel ? 'selected' : ''}>${esc(c)}</option>`).join('');
+  openSheet(`<h3>${id ? 'Edit transaction' : 'New transaction'}</h3>
+    <div class="seg" role="group" aria-label="Type" style="margin-top:8px">${[['out', 'Expense'], ['in', 'Income'], ['xfer', 'Transfer']].map(([v, l]) => `<button type="button" data-kind="${v}" aria-pressed="${t.kind === v}">${l}</button>`).join('')}</div>
+    <div class="two"><div class="field"><label for="tamt">Amount (₹)</label><input id="tamt" type="number" inputmode="decimal" min="0" value="${t.amt}"></div>
+      <div class="field"><label for="tdate">Date</label><input id="tdate" type="date" value="${t.date}"></div></div>
+    <div class="field"><label for="tacct" id="tacctl">${t.kind === 'xfer' ? 'From account' : 'Account'}</label><select id="tacct">${opts(t.acct)}</select></div>
+    <div class="field" id="tto-f" ${t.kind === 'xfer' ? '' : 'hidden'}><label for="tto">To account</label><select id="tto">${opts(t.to || S.personal.accounts.find(a => a.id !== t.acct)?.id)}</select></div>
+    <div class="field" id="tcat-f" ${t.kind === 'xfer' ? 'hidden' : ''}><label for="tcat">Category</label><select id="tcat">${catOpts(t.kind === 'xfer' ? 'out' : t.kind, t.cat)}</select></div>
+    <div class="field"><label for="tnote">Note</label><input id="tnote" value="${esc(t.note || '')}" placeholder="Optional"></div>
+    <div class="actions">${id ? `<button class="btn danger" data-act="txn-del" data-v="${id}">Delete</button>` : ''}<span class="spacer"></span><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="txn-save" data-v="${id || ''}">Save</button></div>`,
+  sh => {
+    sh.dataset.kind = t.kind;
+    sh.querySelectorAll('[data-kind]').forEach(b => b.addEventListener('click', () => {
+      const kind = b.dataset.kind; sh.dataset.kind = kind;
+      sh.querySelectorAll('[data-kind]').forEach(x => x.setAttribute('aria-pressed', x === b));
+      $('#tto-f', sh).hidden = kind !== 'xfer'; $('#tcat-f', sh).hidden = kind === 'xfer';
+      $('#tacctl', sh).textContent = kind === 'xfer' ? 'From account' : 'Account';
+      if (kind !== 'xfer') $('#tcat', sh).innerHTML = catOpts(kind, '');
+    }));
+  });
+}
+function saveTxn(id) {
+  const sh = $('.sheet'), kind = sh.dataset.kind;
+  const amt = n0($('#tamt', sh).value);
+  if (amt <= 0) return toast('Enter an amount above zero');
+  const t = { id: id || uid(), kind, amt, date: $('#tdate', sh).value || todayISO(), acct: $('#tacct', sh).value, note: $('#tnote', sh).value.trim() };
+  if (kind === 'xfer') { t.to = $('#tto', sh).value; if (t.to === t.acct) return toast('Choose two different accounts'); }
+  else t.cat = $('#tcat', sh).value;
+  const i = S.personal.txns.findIndex(x => x.id === t.id);
+  if (i >= 0) S.personal.txns[i] = t; else S.personal.txns.push(t);
+  ui.pMonth = monthKeyOf(t.date);
+  save(); closeSheet(); render(); toast('Saved');
+}
+
+function acctEditor(id) {
+  const a = id ? S.personal.accounts.find(x => x.id === id) : { name: '', kind: 'bank', opening: '' };
+  const used = id && S.personal.txns.some(t => t.acct === id || t.to === id);
+  openSheet(`<h3>${id ? 'Edit account' : 'Add account'}</h3>
+    <div class="field"><label for="aname">Name</label><input id="aname" value="${esc(a.name)}" placeholder="e.g. SBI Savings"></div>
+    <div class="two"><div class="field"><label for="akind">Kind</label><select id="akind"><option value="bank" ${a.kind === 'bank' ? 'selected' : ''}>Bank account</option><option value="cash" ${a.kind === 'cash' ? 'selected' : ''}>Cash</option></select></div>
+    <div class="field"><label for="aopen">Starting balance (₹)</label><input id="aopen" type="number" inputmode="decimal" value="${a.opening}"></div></div>
+    <p class="note">The starting balance is what the account held before your first entry here.</p>
+    <div class="actions">${id ? `<button class="btn danger" data-act="acct-del" data-v="${id}" ${used ? 'disabled title="This account has transactions"' : ''}>Remove</button>` : ''}<span class="spacer"></span><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="acct-save" data-v="${id || ''}">Save</button></div>
+    ${used ? '<p class="note">To remove this account, delete its transactions first.</p>' : ''}`);
+}
+
+function confirmSheet(title, body, okLabel, onOk) {
+  openSheet(`<h3>${esc(title)}</h3><p>${body}</p><div class="actions"><button class="btn" data-act="close">Cancel</button><button class="btn danger" id="okbtn">${esc(okLabel)}</button></div>`,
+    sh => $('#okbtn', sh).addEventListener('click', () => { closeSheet(); onOk(); }));
+}
+
+let toastTimer;
+function toast(msg) {
+  let t = $('.toast'); if (!t) { t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); document.body.appendChild(t); }
+  t.textContent = msg; clearTimeout(toastTimer); toastTimer = setTimeout(() => t.remove(), 2400);
+}
+
+/* ---------- Backup ---------- */
+function exportBackup() {
+  const json = JSON.stringify(S, null, 1);
+  const name = `intentionally-backup-${todayISO()}.json`;
+  try {
+    const blob = new Blob([json], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  } catch (e) {}
+  // Fallback for places that block downloads: show the backup text with a copy button.
+  $('#exportbox').innerHTML = `<p class="note">If no file was saved, copy this backup text and keep it somewhere safe.</p><button class="btn small" data-act="copy-backup">Copy backup text</button><code class="blob">${esc(json.slice(0, 4000))}${json.length > 4000 ? '…' : ''}</code>`;
+  $('#exportbox').dataset.json = json;
+}
+function importBackup(text) {
+  let data;
+  try { data = JSON.parse(text); } catch (e) { return toast('That file is not an Intentionally backup.'); }
+  if (!data || !data.settings || !data.mass || !data.personal) return toast('That file is not an Intentionally backup.');
+  confirmSheet('Replace data with this backup?', `The backup was last saved ${esc(new Date(data.meta?.updatedAt || Date.now()).toLocaleString('en-IN'))}. Everything now on this phone will be replaced.`, 'Replace', () => {
+    S = migrate(data); S.meta.example = false; save(); render(); toast('Backup restored');
+  });
+}
+
+/* ---------- Google Drive (appDataFolder) ---------- */
+const GD = { token: null, exp: 0 };
+function loadGis() {
+  return new Promise((res, rej) => {
+    if (window.google?.accounts?.oauth2) return res();
+    const s = document.createElement('script'); s.src = 'https://accounts.google.com/gsi/client'; s.async = true;
+    s.onload = () => res(); s.onerror = () => rej(new Error('Could not reach Google. Check the internet connection and try again.'));
+    document.head.appendChild(s);
+  });
+}
+async function gToken() {
+  if (GD.token && Date.now() < GD.exp) return GD.token;
+  await loadGis();
+  const cid = GOOGLE_CLIENT_ID || S.settings.gClientId;
+  return new Promise((res, rej) => {
+    const c = google.accounts.oauth2.initTokenClient({
+      client_id: cid, scope: 'https://www.googleapis.com/auth/drive.appdata email',
+      callback: r => { if (r.error) return rej(new Error('Google sign-in was cancelled.')); GD.token = r.access_token; GD.exp = Date.now() + (r.expires_in - 60) * 1000; res(GD.token); },
+      error_callback: () => rej(new Error('Google sign-in was closed before it finished.')),
+    });
+    c.requestAccessToken();
+  });
+}
+async function gfetch(url, opt = {}) {
+  const tok = await gToken();
+  const r = await fetch(url, { ...opt, headers: { ...(opt.headers || {}), Authorization: 'Bearer ' + tok } });
+  if (!r.ok) throw new Error('Google Drive answered ' + r.status + '. Try again in a moment.');
+  return r;
+}
+async function gFind() {
+  const q = encodeURIComponent(`name='${BACKUP_NAME}'`);
+  const r = await gfetch(`https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=${q}&fields=files(id,modifiedTime)&orderBy=modifiedTime desc`);
+  return (await r.json()).files?.[0] || null;
+}
+async function gWhoAmI() {
+  try { const r = await gfetch('https://www.googleapis.com/oauth2/v3/userinfo'); S.meta.driveEmail = (await r.json()).email || null; } catch (e) {}
+}
+async function gBackup() {
+  try {
+    toast('Backing up to Google Drive…');
+    const f = await gFind();
+    const meta = f ? { name: BACKUP_NAME } : { name: BACKUP_NAME, parents: ['appDataFolder'] };
+    const body = new FormData();
+    body.append('metadata', new Blob([JSON.stringify(meta)], { type: 'application/json' }));
+    body.append('file', new Blob([JSON.stringify(S)], { type: 'application/json' }));
+    const url = f ? `https://www.googleapis.com/upload/drive/v3/files/${f.id}?uploadType=multipart` : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+    await gfetch(url, { method: f ? 'PATCH' : 'POST', body });
+    await gWhoAmI();
+    S.meta.lastDriveBackup = new Date().toISOString(); save(); render(); toast('Backed up to Google Drive');
+  } catch (e) { toast(e.message); }
+}
+async function gRestore() {
+  try {
+    const f = await gFind();
+    if (!f) return toast('No backup found on this Google account.');
+    const r = await gfetch(`https://www.googleapis.com/drive/v3/files/${f.id}?alt=media`);
+    importBackup(await r.text());
+  } catch (e) { toast(e.message); }
+}
+
+/* ---------- Events ---------- */
+document.addEventListener('click', e => {
+  const stepBtn = e.target.closest('[data-step]');
+  if (stepBtn) { const inp = stepBtn.parentElement.querySelector('input'); inp.value = Math.max(0, n0(inp.value) + Number(stepBtn.dataset.step)) || ''; refreshStipend(stepBtn.closest('.sheet')); return; }
+  const el = e.target.closest('[data-act]');
+  if (!el) return;
+  const act = el.dataset.act, v = el.dataset.v;
+  if (act === 'scrim') { if (e.target === el) closeSheet(); return; }
+  if (el.tagName === 'INPUT') return; // handled on change
+  switch (act) {
+    case 'tab': ui.tab = v; closeSheet(); render(); scrollTo(0, 0); break;
+    case 'month': ui.month = shiftMonth(ui.month, Number(v)); render(); break;
+    case 'pmonth': ui.pMonth = shiftMonth(ui.pMonth, Number(v)); render(); break;
+    case 'mview': ui.massView = v; try { localStorage.setItem('intentionally.view', v); } catch (_) {} render(); break;
+    case 'edit-day': dayEditor(Number(v)); break;
+    case 'add-today': ui.month = monthKeyOf(todayISO()); render(); dayEditor(Number(todayISO().slice(8))); break;
+    case 'day-save': saveDay(Number(v)); break;
+    case 'day-clear': { const d = Number($('[data-act=day-save]').dataset.v); delete monthData(ui.month).days[d]; save(); closeSheet(); render(); toast('Day cleared'); break; }
+    case 'edit-handed': handedEditor(); break;
+    case 'handed-save': { const sh = $('.sheet'), M = monthData(ui.month); M.handed = { counts: readCounts(sh, 'h_'), rem: $('#hrem', sh).value.trim() }; save(); closeSheet(); render(); toast('Saved'); break; }
+    case 'edit-opening': openingEditor(); break;
+    case 'opening-save': { const M = monthData(ui.month); M.opening = { manual: true, counts: readCounts($('.sheet'), 'p_') }; save(); closeSheet(); render(); toast('Opening balance set'); break; }
+    case 'opening-auto': { delete monthData(ui.month).opening; save(); closeSheet(); render(); toast('Opening balance now carries forward'); break; }
+    case 'add-txn': txnEditor(); break;
+    case 'edit-txn': txnEditor(v); break;
+    case 'txn-save': saveTxn(v); break;
+    case 'txn-del': confirmSheet('Delete this transaction?', 'This cannot be undone.', 'Delete', () => { S.personal.txns = S.personal.txns.filter(t => t.id !== v); save(); render(); toast('Deleted'); }); break;
+    case 'add-acct': acctEditor(); break;
+    case 'edit-acct': acctEditor(v); break;
+    case 'acct-save': {
+      const sh = $('.sheet'), name = $('#aname', sh).value.trim();
+      if (!name) return toast('Give the account a name');
+      const a = { id: v || uid(), name, kind: $('#akind', sh).value, opening: n0($('#aopen', sh).value) };
+      const i = S.personal.accounts.findIndex(x => x.id === a.id);
+      if (i >= 0) S.personal.accounts[i] = a; else S.personal.accounts.push(a);
+      save(); closeSheet(); render(); toast('Saved'); break;
+    }
+    case 'acct-del': S.personal.accounts = S.personal.accounts.filter(a => a.id !== v); save(); closeSheet(); render(); break;
+    case 'close': closeSheet(); break;
+    case 'clear-examples': confirmSheet('Clear the example entries?', 'The app will start empty with a Cash account, ready for your own entries.', 'Clear examples', () => { S = blank(); save(); render(); toast('Ready for your entries'); }); break;
+    case 'type-add': S.settings.types.push({ id: 't' + uid().slice(0, 6), en: 'New Mass type', ml: '', recv: true, off: true }); save(); render(); break;
+    case 'type-del': { const i = Number(el.closest('.typerow').dataset.i); const t = S.settings.types[i];
+      confirmSheet(`Remove “${t.en}”?`, 'The column disappears from your book. Numbers already entered stay saved and come back if you add it again with Restore default list.', 'Remove', () => { S.settings.types.splice(i, 1); save(); render(); }); break; }
+    case 'type-reset': confirmSheet('Restore the default Mass types?', 'Your column names go back to the original list. Entries you made are kept.', 'Restore', () => { S.settings.types = DEFAULT_TYPES.map(t => ({ ...t })); save(); render(); }); break;
+    case 'export': exportBackup(); break;
+    case 'copy-backup': { const j = $('#exportbox').dataset.json; navigator.clipboard?.writeText(j).then(() => toast('Backup text copied'), () => toast('Copy failed. Select the text and copy it.')); break; }
+    case 'g-backup': gBackup(); break;
+    case 'g-restore': gRestore(); break;
+    case 'erase': confirmSheet('Erase everything?', 'All Mass entries, accounts and transactions on this phone will be deleted. Save a backup first if you may need them.', 'Erase everything', () => { S = blank(); save(); render(); toast('All data erased'); }); break;
+  }
+});
+document.addEventListener('change', e => {
+  const el = e.target;
+  if (el.id === 'importfile' && el.files[0]) { const r = new FileReader(); r.onload = () => importBackup(r.result); r.readAsText(el.files[0]); el.value = ''; return; }
+  const act = el.dataset.act; if (!act) return;
+  const row = el.closest('.typerow'), t = row && S.settings.types[Number(row.dataset.i)];
+  if (act === 'type-en') t.en = el.value.trim() || t.en;
+  else if (act === 'type-ml') t.ml = el.value.trim();
+  else if (act === 'type-rate') t.rate = Math.max(0, n0(el.value));
+  else if (act === 'type-recv') t.recv = el.checked;
+  else if (act === 'type-off') t.off = el.checked;
+  else if (act === 'show-ml') S.settings.showMl = el.checked;
+  else if (act === 'gcid') S.settings.gClientId = el.value.trim();
+  else return;
+  save(); if (!['type-en', 'type-ml', 'type-rate'].includes(act)) render();
+});
+document.addEventListener('input', e => {
+  const el = e.target;
+  if (el.id === 'amt') el.dataset.auto = '0';
+  else if (el.name?.startsWith('r_') || el.name?.startsWith('o_')) refreshStipend(el.closest('.sheet'));
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
+
+/* ---------- Boot ---------- */
+S = load();
+try { ui.massView = localStorage.getItem('intentionally.view') || 'days'; } catch (e) {}
+save();
+render();
+try { navigator.storage?.persist?.(); } catch (e) {}
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+})();
+</script>
+</body></html>
