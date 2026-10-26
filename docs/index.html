@@ -148,6 +148,9 @@ table { border-collapse: collapse; width: 100% }
 .btn[disabled] { opacity: .5; cursor: not-allowed }
 .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center }
 .row.between { justify-content: space-between }
+.row .spacer { flex: 1 }
+.exp-prev { margin: 10px 0; min-height: 120px; display: grid; place-items: center; background: var(--surface-2, #eee); border: 1px solid var(--line) }
+.exp-prev img { display: block; width: 100%; height: auto }
 
 .fab { box-shadow: var(--shadow), inset 0 0 0 1px color-mix(in srgb, var(--band-gold) 45%, transparent); background: linear-gradient(170deg, var(--band-2), var(--band-1)); position: fixed; right: max(18px, calc(env(safe-area-inset-right, 0px) + 18px)); bottom: calc(80px + env(safe-area-inset-bottom, 0px)); width: 58px; height: 58px; border-radius: 18px; background: var(--accent); color: var(--accent-ink); border: 0; font-size: 28px; box-shadow: var(--shadow); z-index: 20 }
 
@@ -592,7 +595,7 @@ function renderMass() {
     h += `<tr><td colspan="6" class="note" style="text-align:left">Binations in ${y}: <b>${yb}</b> × ${money(rate)} = <b>${money(yb * rate)}</b></td></tr>`;
   }
   h += `</tbody></table></div>
-    <div class="row"><button class="btn small" data-act="edit-opening">Opening balance</button><button class="btn small" data-act="edit-handed">Handed over</button></div>`;
+    <div class="row"><button class="btn small" data-act="edit-opening">Opening balance</button><button class="btn small" data-act="edit-handed">Handed over</button><span class="spacer"></span><button class="btn small primary" data-act="export-month">Export month</button></div>`;
   h += `</div>`;
   return h;
 }
@@ -704,6 +707,165 @@ function renderBook(k, open, tot, close) {
   return h;
 }
 
+/* ---------- Monthly export (Mass book page as a PDF or picture) ---------- */
+// Drawn on a canvas so Malayalam labels render, then wrapped in a one-page PDF by hand, so it works offline with no library.
+async function drawMonthPage(k) {
+  const W = 2339, H = 1654, P = 70; // A4 landscape at 200 dpi
+  try { await Promise.all(['600 30px "Noto Sans Malayalam"', '400 30px "IBM Plex Sans"', '600 30px "IBM Plex Sans"', '700 60px "Cormorant Garamond"'].map(f => document.fonts.load(f))); } catch (_) {}
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const c = cv.getContext('2d');
+  const showMl = S.settings.showMl;
+  const BLUE = '#17106c', GOLD = '#9c7317', INK = '#1d1b33', SOFT = '#6b6889', LINE = '#c9c6dc', RECV = '#0f7457', OFF = '#9b1c2c';
+  const sans = (w, s) => `${w} ${s}px "IBM Plex Sans", system-ui, sans-serif`, mlf = (w, s) => `${w} ${s}px "Noto Sans Malayalam", sans-serif`;
+  const txt = (s, x, y, font, color = INK, align = 'left') => { c.font = font; c.fillStyle = color; c.textAlign = align; c.fillText(s, x, y); };
+  const fit = (s, w, font) => { c.font = font; if (c.measureText(s).width <= w) return s; while (s.length > 1 && c.measureText(s + '…').width > w) s = s.slice(0, -1); return s + '…'; };
+  c.fillStyle = '#fff'; c.fillRect(0, 0, W, H);
+
+  // Heading
+  const [y, m] = k.split('-').map(Number);
+  c.fillStyle = BLUE; c.fillRect(0, 0, W, 12); c.fillStyle = GOLD; c.fillRect(0, 12, W, 4);
+  txt('Mass Account', P, 92, '700 60px "Cormorant Garamond", Georgia, serif', BLUE);
+  txt(monthName(k), W - P, 92, '700 60px "Cormorant Garamond", Georgia, serif', BLUE, 'right');
+  if (showMl) txt(`${ML_MONTHS[m - 1]} ${y}`, W - P, 130, mlf(400, 26), SOFT, 'right');
+  if (S.settings.priestName) txt(S.settings.priestName, P, 132, sans(500, 30), SOFT);
+
+  const R = recvTypes(), O = offTypes(), n = daysIn(k);
+  const M = S.mass[k] || { days: {} }, open = openingOf(k), tot = monthTotals(k), close = closingFrom(open, tot);
+  // Columns: date | received types | stipend | notes | offered types
+  const top = 170, x0 = P, x1 = W - P;
+  const wDate = 116, wType = 112, wAmt = 150;
+  const wNotes = (x1 - x0) - wDate - wType * (R.length + O.length) - wAmt;
+  const cols = [{ w: wDate, kind: 'date' }, ...R.map(t => ({ w: wType, kind: 'r', t })), { w: wAmt, kind: 'amt' }, { w: wNotes, kind: 'notes' }, ...O.map(t => ({ w: wType, kind: 'o', t }))];
+  let x = x0; for (const col of cols) { col.x = x; x += col.w; }
+  const head1 = 46, head2 = showMl ? 104 : 74, rows = n + 4, rowH = Math.floor((H - top - head1 - head2 - 150) / rows);
+
+  // Side headings: Received and Offered
+  const span = (a, b, label, mlLabel, color) => {
+    c.fillStyle = color; c.globalAlpha = .08; c.fillRect(a, top, b - a, head1); c.globalAlpha = 1;
+    txt(label + (showMl ? '  ' : ''), (a + b) / 2 - (showMl ? 60 : 0), top + 32, sans(600, 26), color, 'center');
+    if (showMl) txt(mlLabel, (a + b) / 2 + 60, top + 32, mlf(600, 22), color, 'center');
+  };
+  const rA = cols[1].x, rB = cols[R.length + 1].x + wAmt, oA = cols[R.length + 3].x;
+  span(rA, rB, 'Received', ML.received, RECV); span(oA, x1, 'Offered', ML.offered, OFF);
+
+  // Column headings
+  const hy = top + head1;
+  const wrap = (s, w, font) => { c.font = font; const out = []; let line = ''; for (const word of s.split(' ')) { const t2 = line ? line + ' ' + word : word; if (c.measureText(t2).width > w && line) { out.push(line); line = word; } else line = t2; } out.push(line); return out.slice(0, 2); };
+  for (const col of cols) {
+    const cx = col.x + col.w / 2;
+    let en = col.kind === 'date' ? 'Date' : col.kind === 'amt' ? 'Stipend ₹' : col.kind === 'notes' ? 'Notes' : col.t.en.replace(/ Mass$/, '');
+    let mlS = col.kind === 'date' ? ML.date : col.t ? col.t.ml : '';
+    wrap(en, col.w - 10, sans(600, 21)).forEach((l, i) => txt(l, cx, hy + 28 + i * 24, sans(600, 21), INK, 'center'));
+    // Malayalam words run long, so shrink a line until it fits its column.
+    if (showMl && mlS) wrap(mlS, col.w - 8, mlf(400, 16)).forEach((l, i) => { let f = 16; c.font = mlf(400, f); while (f > 10 && c.measureText(l).width > col.w - 8) c.font = mlf(400, --f); txt(l, cx, hy + 80 + i * 19, mlf(400, f), SOFT, 'center'); });
+  }
+
+  // Rows
+  const ry = i => hy + head2 + i * rowH;
+  const rowsData = [];
+  rowsData.push({ label: 'Opening', foot: true, r: id => open[id], o: () => '' });
+  for (let d = 1; d <= n; d++) {
+    const e = M.days?.[d] || {}, off = splitOffered(e.o);
+    let note = e.noMass && !off.first ? 'No Mass' + (e.rem ? ' · ' : '') : '';
+    if (e.fk && n0(e.r?.[FOUNDATION])) note += `Foundation as ${typeById(e.fk)?.en.replace(/ Mass$/, '') || e.fk}${e.rem ? ' · ' : ''}`;
+    rowsData.push({ label: String(d), wd: weekday(k, d), sun: new Date(y, m - 1, d).getDay() === 0, r: id => e.r?.[id], amt: e.amt, note: note + (e.rem || ''), noMass: !!(e.noMass && !off.first),
+      o: id => id === BINATION ? off.bin : off.first === id ? '●' : '' });
+  }
+  rowsData.push({ label: 'Handed over', wide: true, r: () => '', o: id => tot.h[id] });
+  rowsData.push({ label: 'Total', foot: true, r: id => n0(tot.r[id]), amt: tot.amt, o: id => n0(tot.o[id]) + n0(tot.h[id]) });
+  rowsData.push({ label: 'Balance', foot: true, bal: true, r: id => close[id], o: () => '' });
+
+  const fs = Math.min(24, rowH - 8), mid = rowH / 2 + fs * .36;
+  rowsData.forEach((row, i) => {
+    const yy = ry(i);
+    if (row.foot) { c.fillStyle = '#f1f0f7'; c.fillRect(x0, yy, x1 - x0, rowH); }
+    else if (row.sun) { c.fillStyle = '#fbf6e8'; c.fillRect(x0, yy, x1 - x0, rowH); }
+    for (const col of cols) {
+      const cx = col.x + col.w / 2, ty = yy + mid;
+      if (col.kind === 'date') {
+        if (row.wide) continue;
+        txt(row.label, row.foot ? col.x + 8 : cx, ty, sans(600, row.foot ? fs - 4 : fs), row.foot ? BLUE : INK, row.foot ? 'left' : 'center');
+      } else if (col.kind === 'notes') {
+        if (row.wide) { txt(row.label, col.x + col.w - 12, ty, sans(600, fs - 2), BLUE, 'right'); continue; }
+        if (row.note) txt(fit(row.note, col.w - 16, sans(400, fs - 4)), col.x + 8, ty, sans(row.noMass ? 600 : 400, fs - 4), row.noMass ? OFF : INK);
+      } else if (col.kind === 'amt') {
+        if (n0(row.amt)) txt(n0(row.amt).toLocaleString('en-IN'), col.x + col.w - 10, ty, sans(row.foot ? 600 : 400, fs - 2), INK, 'right');
+      } else {
+        const v = col.kind === 'r' ? row.r(col.t.id) : row.o(col.t.id);
+        if (v === '●') { c.fillStyle = OFF; c.beginPath(); c.arc(cx, yy + rowH / 2, fs * .3, 0, 7); c.fill(); }
+        else if (n0(v)) txt(String(v), cx, ty, sans(row.foot ? 600 : 400, fs - 2), row.bal && v < 0 ? OFF : INK, 'center');
+        else if (!row.foot && !row.wide) txt('·', cx, ty, sans(400, fs - 2), LINE, 'center');
+      }
+    }
+  });
+  // Grid
+  const yEnd = ry(rowsData.length);
+  c.strokeStyle = LINE; c.lineWidth = 1.5;
+  for (let i = 0; i <= rowsData.length; i++) { c.beginPath(); c.moveTo(x0, ry(i) + .5); c.lineTo(x1, ry(i) + .5); c.stroke(); }
+  for (const col of cols) { c.beginPath(); c.moveTo(col.x + .5, hy); c.lineTo(col.x + .5, yEnd); c.stroke(); }
+  c.beginPath(); c.moveTo(x1 - .5, top); c.lineTo(x1 - .5, yEnd); c.stroke();
+  c.strokeStyle = BLUE; c.lineWidth = 3;
+  c.strokeRect(x0, top, x1 - x0, yEnd - top);
+  for (const xx of [rA, oA, rB]) { c.beginPath(); c.moveTo(xx, top); c.lineTo(xx, yEnd); c.stroke(); }
+  c.beginPath(); c.moveTo(x0, hy + head2); c.lineTo(x1, hy + head2); c.stroke();
+
+  // Summary line
+  const recd = Object.entries(tot.r).reduce((a, [id, v]) => a + n0(v) * perIntention(id), 0);
+  const yb = typeById(BINATION) ? yearBinations(y) : 0, rate = n0(typeById('ordinary')?.rate) || 150;
+  const parts = [`Intentions received ${recd}`, `Masses offered ${sumObj(tot.o)}`, `Stipends ${money(tot.amt)}`, `Still to offer ${sumObj(close)}`];
+  if (typeById(BINATION)) parts.push(`Binations this month ${n0(tot.o[BINATION])}, in ${y} so far ${yb} × ${money(rate)} = ${money(yb * rate)}`);
+  txt(parts.join('   ·   '), P, yEnd + 52, sans(500, 25), INK);
+  const greg = gregorianSets().filter(st => !st.done && !st.carried);
+  if (greg.length) txt('Gregorian: ' + greg.map(st => { const due = new Date(st.date + 'T00:00'); due.setDate(due.getDate() + GREG_DAYS); return `${st.said} of ${st.need} said, finish by ${due.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`; }).join(' · '), P, yEnd + 92, sans(400, 23), SOFT);
+  txt(`Made with Intentionally on ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`, W - P, H - 34, sans(400, 20), SOFT, 'right');
+  return cv;
+}
+// A one-page PDF holding a single JPEG, written by hand (no library needed).
+function jpegToPdf(jpeg, pw, ph) {
+  const enc = new TextEncoder(), parts = [], offs = [];
+  let len = 0;
+  const put = x => { const b = typeof x === 'string' ? enc.encode(x) : x; parts.push(b); len += b.length; };
+  const obj = (i, body, stream) => { offs[i] = len; put(`${i} 0 obj\n${body}\n`); if (stream) { put('stream\n'); put(stream); put('\nendstream\n'); } put('endobj\n'); };
+  const draw = `q ${pw} 0 0 ${ph} 0 0 cm /Im0 Do Q`;
+  put('%PDF-1.4\n'); put(new Uint8Array([37, 226, 227, 207, 211, 10]));
+  obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+  obj(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+  obj(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pw} ${ph}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>`);
+  obj(4, `<< /Type /XObject /Subtype /Image /Width ${jpeg.w} /Height ${jpeg.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.bytes.length} >>`, jpeg.bytes);
+  obj(5, `<< /Length ${draw.length} >>`, enc.encode(draw));
+  const xref = len;
+  put(`xref\n0 6\n0000000000 65535 f \n${offs.slice(1).map(o => String(o).padStart(10, '0') + ' 00000 n \n').join('')}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+  return new Blob(parts, { type: 'application/pdf' });
+}
+const EXP = {};
+async function exportMonthSheet() {
+  const k = ui.month, base = `Mass-account-${k}`;
+  openSheet(`<h2>Export ${esc(monthName(k))}</h2><p class="note">The month's page from your Mass book, ready to send or print.</p>
+    <div class="exp-prev"><span class="note">Preparing…</span></div>
+    <div class="actions"><button class="btn" data-act="close">Close</button><span class="spacer"></span>
+      <button class="btn" data-act="exp-share" data-v="png" disabled>Picture</button><button class="btn primary" data-act="exp-share" data-v="pdf" disabled>PDF</button></div>`);
+  const cv = await drawMonthPage(k);
+  const jpgBlob = await new Promise(r => cv.toBlob(r, 'image/jpeg', .9));
+  const bytes = new Uint8Array(await jpgBlob.arrayBuffer());
+  EXP.pdf = new File([jpegToPdf({ bytes, w: cv.width, h: cv.height }, 842, 595)], base + '.pdf', { type: 'application/pdf' });
+  EXP.png = new File([jpgBlob], base + '.jpg', { type: 'image/jpeg' });
+  const sh = $('.sheet'); if (!sh) return;
+  EXP.url && URL.revokeObjectURL(EXP.url); EXP.url = URL.createObjectURL(jpgBlob);
+  $('.exp-prev', sh).innerHTML = `<img src="${EXP.url}" alt="Mass account page for ${esc(monthName(k))}">`;
+  sh.querySelectorAll('[data-act="exp-share"]').forEach(b => b.disabled = false);
+}
+async function shareExport(kind) {
+  const f = EXP[kind]; if (!f) return;
+  try {
+    if (navigator.canShare?.({ files: [f] })) { await navigator.share({ files: [f], title: f.name }); return; }
+  } catch (e) { if (e.name === 'AbortError') return; }
+  try {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = f.name;
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+    toast(`Saved ${f.name}`);
+  } catch (e) { toast('Could not save here. Press and hold the picture to save it.'); }
+}
+
 function renderPersonal() {
   const k = ui.pMonth;
   const accts = S.personal.accounts;
@@ -764,6 +926,7 @@ function renderSettings() {
       <label class="ck"><input type="checkbox" data-act="type-off" ${t.off ? 'checked' : ''}></label>
       <button class="btn small" data-act="type-del" aria-label="Remove ${esc(t.en)}">✕</button></div>`).join('')}
     <div class="row" style="margin-top:12px"><button class="btn small" data-act="type-add">Add Mass type</button><button class="btn small" data-act="type-reset">Restore default list</button></div>
+    <div class="field"><label for="pname">Your name</label><input id="pname" data-act="pname" value="${esc(S.settings.priestName || '')}" placeholder="Fr. …" autocomplete="name"><span class="note">Printed at the top of the exported month page. Optional.</span></div>
     <div class="field"><label for="deffirst">Mass ticked on a new day</label><select id="deffirst" data-act="def-first">${offTypes().filter(t => t.id !== BINATION).map(t => `<option value="${t.id}" ${defaultFirst() === t.id ? 'selected' : ''}>${esc(t.en)}</option>`).join('')}<option value="" ${defaultFirst() ? '' : 'selected'}>No Mass</option></select><span class="note">Change this if you offer the same kind every day, for example Gregorian Mass while a set of 30 is running.</span></div>
     <label class="switch"><span>Show Malayalam labels</span><input type="checkbox" id="showml" data-act="show-ml" ${S.settings.showMl ? 'checked' : ''}></label>
   </div>`;
@@ -1084,6 +1247,8 @@ document.addEventListener('click', e => {
     case 'day-today': ui.day = todayISO(); ui.month = monthKeyOf(ui.day); render(); break;
     case 'day-save': saveDay(); break;
     case 'bulk': bulkEditor(); break;
+    case 'export-month': exportMonthSheet(); break;
+    case 'exp-share': shareExport(v); break;
     case 'set-default': { const v2 = $('#entry input[name="first"]:checked')?.value ?? ''; S.settings.defaultFirst = v2; save(); render(); toast(`New days will start with ${typeById(v2)?.en || 'No Mass'}`); break; }
     case 'day-clear': confirmSheet('Clear this day?', 'All entries for this day will be removed.', 'Clear day', () => { delete monthData(monthKeyOf(ui.day)).days[Number(ui.day.slice(8))]; save(); render(); toast('Day cleared'); }); break;
     case 'edit-handed': handedEditor(); break;
@@ -1133,9 +1298,10 @@ document.addEventListener('change', e => {
   else if (act === 'type-off') t.off = el.checked;
   else if (act === 'show-ml') S.settings.showMl = el.checked;
   else if (act === 'def-first') S.settings.defaultFirst = el.value;
+  else if (act === 'pname') S.settings.priestName = el.value.trim();
   else if (act === 'gcid') S.settings.gClientId = el.value.trim();
   else return;
-  save(); if (!['type-en', 'type-ml', 'type-rate'].includes(act)) render();
+  save(); if (!['type-en', 'type-ml', 'type-rate', 'pname'].includes(act)) render();
 });
 document.addEventListener('input', e => {
   const el = e.target;
