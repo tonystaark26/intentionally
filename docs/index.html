@@ -12,37 +12,45 @@
 <title>Intentionally</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Literata:opsz,wght@7..72,500;7..72,650&family=Noto+Sans+Malayalam:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Cormorant+Garamond:wght@500;600;700&family=Noto+Sans+Malayalam:wght@400;600&display=swap">
 <style>
-/* Layout: one narrow column like a pocket ledger, a fixed tab bar at the bottom, sheets slide up for editing */
+/* Layout: a maroon-and-gold header band like the cover of a Mass book, then one narrow column of pages; tab bar fixed at the bottom */
 :root {
-  --bg: #eef1f4;
-  --surface: #ffffff;
-  --surface-2: #f6f8fa;
-  --ink: #18212c;
-  --muted: #5a6676;
-  --line: #d6dce4;
+  --bg: #f4eeec;
+  --surface: #fffdfb;
+  --surface-2: #f8f1ee;
+  --ink: #2a1519;
+  --muted: #7a5e62;
+  --line: #e7d8d3;
   --accent: #7b1e2c;      /* liturgical red: offered side, primary actions */
-  --accent-ink: #ffffff;
-  --recv: #1d6a61;        /* received side */
+  --accent-ink: #fff8ef;
+  --gold: #a87b26;        /* gilt edges, eyebrows, ornaments */
+  --gold-soft: #ead9ae;
+  --recv: #1d5d49;        /* received side */
   --good: #2c7a3f;
   --bad: #a3362b;
-  --warn-bg: #fff4d6;
+  --warn-bg: #fbefd0;
   --warn-ink: #6b4d00;
-  --shadow: 0 1px 2px rgba(20,30,45,.06), 0 6px 24px rgba(20,30,45,.08);
-  --f-display: "Literata", Georgia, "Noto Sans Malayalam", serif;
+  --band-1: #4f0f1b;
+  --band-2: #7b1e2c;
+  --band-ink: #fbefe2;
+  --band-gold: #dcb96b;
+  --shadow: 0 1px 2px rgba(60,20,25,.06), 0 8px 26px rgba(60,20,25,.09);
+  --f-display: "Cormorant Garamond", Georgia, "Noto Sans Malayalam", serif;
   --f-body: "IBM Plex Sans", "Noto Sans Malayalam", system-ui, -apple-system, "Segoe UI", sans-serif;
   --f-ml: "Noto Sans Malayalam", "IBM Plex Sans", system-ui, sans-serif;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #11151b; --surface: #19202a; --surface-2: #1f2733; --ink: #e5e9ef; --muted: #98a3b2; --line: #2c3542;
-  --accent: #e27b8b; --accent-ink: #1a0a0e; --recv: #63c3b5; --good: #6fcf86; --bad: #f08a7e;
-  --warn-bg: #3a3014; --warn-ink: #f3d78a; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 24px rgba(0,0,0,.35);
+  --bg: #150c0e; --surface: #20151a; --surface-2: #291c21; --ink: #f3e7e4; --muted: #b69ea2; --line: #3a2a2f;
+  --accent: #e7899a; --accent-ink: #22090f; --gold: #d8b768; --gold-soft: #4a3b1d; --recv: #6cc3a5; --good: #6fcf86; --bad: #f08a7e;
+  --warn-bg: #3a2e12; --warn-ink: #f3d78a; --band-1: #2a080f; --band-2: #4a1320; --band-ink: #f8eadd; --band-gold: #d8b768;
+  --shadow: 0 1px 2px rgba(0,0,0,.35), 0 8px 26px rgba(0,0,0,.4);
   color-scheme: dark } }
 :root[data-theme="dark"] {
-  --bg: #11151b; --surface: #19202a; --surface-2: #1f2733; --ink: #e5e9ef; --muted: #98a3b2; --line: #2c3542;
-  --accent: #e27b8b; --accent-ink: #1a0a0e; --recv: #63c3b5; --good: #6fcf86; --bad: #f08a7e;
-  --warn-bg: #3a3014; --warn-ink: #f3d78a; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 24px rgba(0,0,0,.35);
+  --bg: #150c0e; --surface: #20151a; --surface-2: #291c21; --ink: #f3e7e4; --muted: #b69ea2; --line: #3a2a2f;
+  --accent: #e7899a; --accent-ink: #22090f; --gold: #d8b768; --gold-soft: #4a3b1d; --recv: #6cc3a5; --good: #6fcf86; --bad: #f08a7e;
+  --warn-bg: #3a2e12; --warn-ink: #f3d78a; --band-1: #2a080f; --band-2: #4a1320; --band-ink: #f8eadd; --band-gold: #d8b768;
+  --shadow: 0 1px 2px rgba(0,0,0,.35), 0 8px 26px rgba(0,0,0,.4);
   color-scheme: dark }
 
 * { box-sizing: border-box }
@@ -51,31 +59,39 @@ body { font-family: var(--f-body); font-size: 15px; line-height: 1.45; -webkit-t
 button, input, select, textarea { font: inherit; color: inherit }
 button { cursor: pointer }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
-.num { font-variant-numeric: tabular-nums }
+.num { font-variant-numeric: tabular-nums lining-nums }
+.brand, .hero .big, .monthbar h2, .day .dn, .entry-date b, .inout .val, .hold b, .book .side-r, .book .side-o { font-variant-numeric: lining-nums; font-feature-settings: "lnum" 1 }
 .ml { font-family: var(--f-ml); font-size: .86em; color: var(--muted); font-weight: 400 }
 body.no-ml .ml { display: none }
 
-.wrap { max-width: 760px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 12px calc(96px + env(safe-area-inset-bottom, 0px)) }
+.wrap { max-width: 760px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 16px calc(96px + env(safe-area-inset-bottom, 0px)) }
 
-header.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 8px 14px }
-.brand { font-family: var(--f-display); font-weight: 650; font-size: 22px; letter-spacing: -.01em }
-.brand small { display: block; font-family: var(--f-body); font-weight: 400; font-size: 12px; color: var(--muted); letter-spacing: .02em }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--band-1) }
+header.band { background: linear-gradient(155deg, var(--band-1), var(--band-2) 70%); color: var(--band-ink); border-bottom: 3px double var(--band-gold); margin-top: calc(-1 * env(safe-area-inset-top, 0px)); padding-top: env(safe-area-inset-top, 0px) }
+header.band .in { max-width: 760px; margin: 0 auto; display: flex; align-items: center; gap: 14px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 16px 18px }
+header.band .cross { width: 34px; height: 44px; flex: none; color: var(--band-gold) }
+header.band .brand { flex: 1; min-width: 0 }
+header.band .hold { text-align: right; font-size: 12px; color: var(--band-gold); letter-spacing: .06em; text-transform: uppercase; line-height: 1.2 }
+header.band .hold b { display: block; font-family: var(--f-display); font-size: 30px; color: var(--band-ink); letter-spacing: 0; text-transform: none; font-weight: 600 }
+.brand { font-family: var(--f-display); font-weight: 700; font-size: 31px; line-height: 1; letter-spacing: .01em }
+.brand small { display: block; font-family: var(--f-body); font-weight: 500; font-size: 11.5px; color: var(--band-gold); letter-spacing: .14em; text-transform: uppercase; margin-top: 6px }
 
 .banner { background: var(--warn-bg); color: var(--warn-ink); border-radius: 10px; padding: 10px 12px; display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 14px; font-size: 14px }
 
 .monthbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px }
-.monthbar h2 { margin: 0; font-family: var(--f-display); font-weight: 650; font-size: 24px; text-align: center; flex: 1; line-height: 1.15 }
+.monthbar h2 { margin: 0; font-family: var(--f-display); font-weight: 600; font-size: 29px; text-align: center; flex: 1; line-height: 1.15 }
 .monthbar h2 .ml { display: block; font-size: 13px; font-family: var(--f-ml) }
-.iconbtn { width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; font-size: 18px; flex: none }
+.iconbtn { width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--gold-soft); background: var(--surface); color: var(--accent); display: grid; place-items: center; font-size: 18px; flex: none }
 
-.card { background: var(--surface); border-radius: 14px; box-shadow: var(--shadow); padding: 16px }
+.card { background: var(--surface); border-radius: 4px; box-shadow: var(--shadow); padding: 16px; border: 1px solid var(--line); border-top: 3px solid var(--gold-soft) }
 .stack { display: grid; gap: 14px }
 .section-h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 6px 2px 0 }
-.section-h h3 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600 }
+.section-h h3 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: .14em; color: var(--gold); font-weight: 600 }
+.section-h { border-bottom: 1px solid var(--gold-soft); padding-bottom: 5px }
 
 .hero { display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; align-items: end }
 .hero .label { font-size: 13px; color: var(--muted) }
-.hero .big { font-family: var(--f-display); font-size: 40px; font-weight: 650; line-height: 1 }
+.hero .big { font-family: var(--f-display); font-size: 54px; font-weight: 600; line-height: .95; color: var(--accent) }
 .hero .side { text-align: right; font-size: 13px; color: var(--muted); display: grid; gap: 2px }
 
 .seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 3px }
@@ -88,7 +104,7 @@ table { border-collapse: collapse; width: 100% }
 .sumtable th:first-child, .sumtable td:first-child { text-align: left; white-space: normal }
 .sumtable td:first-child .ml { display: block; font-size: 11.5px }
 .sumtable thead th .ml { display: block; font-size: 10px }
-.sumtable thead th { font-size: 11.5px; color: var(--muted); font-weight: 500; vertical-align: bottom }
+.sumtable thead th { text-transform: uppercase; letter-spacing: .06em; font-size: 11px; color: var(--muted); font-weight: 500; vertical-align: bottom }
 .sumtable td.bal, .sumtable thead th:nth-child(2) { font-weight: 600; color: var(--ink) }
 .sumtable td.bal { font-size: 16px }
 .sumtable th:first-child, .sumtable td:first-child { max-width: 130px }
@@ -98,7 +114,7 @@ table { border-collapse: collapse; width: 100% }
 .days { display: grid; gap: 0; padding: 4px 0 }
 .day { display: grid; grid-template-columns: 46px 1fr auto; gap: 10px; align-items: center; padding: 10px 14px; border: 0; background: none; text-align: left; border-bottom: 1px solid var(--line); width: 100% }
 .day:last-child { border-bottom: 0 }
-.day .dn { font-family: var(--f-display); font-size: 20px; font-weight: 650; line-height: 1 }
+.day .dn { font-family: var(--f-display); font-size: 25px; font-weight: 600; line-height: 1 }
 .day .dn small { display: block; font-family: var(--f-body); font-size: 11px; color: var(--muted); font-weight: 400; margin-top: 3px }
 .day.today .dn { color: var(--accent) }
 .day .chips { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0 }
@@ -114,8 +130,8 @@ table { border-collapse: collapse; width: 100% }
 .book th, .book td { border: 1px solid var(--line); padding: 5px 6px; text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums }
 .book thead th { font-weight: 500; font-size: 11.5px; line-height: 1.25; white-space: normal; min-width: 54px; vertical-align: bottom }
 .book thead th .ml { display: block; font-size: 10.5px }
-.book .side-r { background: color-mix(in srgb, var(--recv) 9%, var(--surface)); color: var(--recv); font-weight: 600 }
-.book .side-o { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); color: var(--accent); font-weight: 600 }
+.book .side-r { background: color-mix(in srgb, var(--recv) 9%, var(--surface)); color: var(--recv); font-weight: 600; font-family: var(--f-display); font-size: 17px }
+.book .side-o { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); color: var(--accent); font-weight: 600; font-family: var(--f-display); font-size: 17px }
 .book td.remc { text-align: left; min-width: 140px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; color: var(--muted) }
 .book tbody tr.dayrow { cursor: pointer }
 .book tbody tr.dayrow:hover td { background: var(--surface-2) }
@@ -123,21 +139,23 @@ table { border-collapse: collapse; width: 100% }
 .book td.lbl { text-align: left; font-weight: 600 }
 .book td.z { color: var(--line) }
 
-.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 10px 14px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; justify-content: center }
-.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent) }
+.btn { border: 1px solid var(--gold-soft); background: var(--surface); border-radius: 6px; padding: 10px 14px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; justify-content: center }
+.btn.primary { background: linear-gradient(170deg, var(--band-2), var(--band-1)); color: var(--accent-ink); border-color: var(--band-1); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--band-gold) 45%, transparent) }
 .btn.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--line)) }
 .btn.small { padding: 6px 10px; font-size: 13px; border-radius: 8px }
 .btn[disabled] { opacity: .5; cursor: not-allowed }
 .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center }
 .row.between { justify-content: space-between }
 
-.fab { position: fixed; right: max(18px, calc(env(safe-area-inset-right, 0px) + 18px)); bottom: calc(80px + env(safe-area-inset-bottom, 0px)); width: 58px; height: 58px; border-radius: 18px; background: var(--accent); color: var(--accent-ink); border: 0; font-size: 28px; box-shadow: var(--shadow); z-index: 20 }
+.fab { box-shadow: var(--shadow), inset 0 0 0 1px color-mix(in srgb, var(--band-gold) 45%, transparent); background: linear-gradient(170deg, var(--band-2), var(--band-1)); position: fixed; right: max(18px, calc(env(safe-area-inset-right, 0px) + 18px)); bottom: calc(80px + env(safe-area-inset-bottom, 0px)); width: 58px; height: 58px; border-radius: 18px; background: var(--accent); color: var(--accent-ink); border: 0; font-size: 28px; box-shadow: var(--shadow); z-index: 20 }
 
-nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; background: var(--surface); border-top: 1px solid var(--line); display: flex; justify-content: center; padding-bottom: env(safe-area-inset-bottom, 0px); padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px) }
+nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; background: var(--surface); border-top: 3px double var(--gold-soft); display: flex; justify-content: center; padding-bottom: env(safe-area-inset-bottom, 0px); padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px) }
 nav.tabs .in { display: grid; grid-template-columns: repeat(3, 1fr); width: 100%; max-width: 760px }
 nav.tabs button { border: 0; background: none; padding: 9px 4px 10px; display: grid; justify-items: center; gap: 2px; font-size: 12.5px; color: var(--muted) }
 nav.tabs button svg { width: 22px; height: 22px }
 nav.tabs button[aria-current="page"] { color: var(--accent); font-weight: 600 }
+nav.tabs button[aria-current="page"]::before { content: ""; position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 34px; height: 3px; background: var(--gold); border-radius: 0 0 3px 3px }
+nav.tabs button { position: relative }
 
 /* sheets */
 .scrim { position: fixed; inset: 0; background: rgba(10,14,20,.45); z-index: 40; display: flex; align-items: flex-end; justify-content: center }
@@ -145,10 +163,10 @@ nav.tabs button[aria-current="page"] { color: var(--accent); font-weight: 600 }
 @media (min-width: 680px) { .scrim { align-items: center } .sheet { border-radius: 18px; max-height: 88% } }
 @keyframes up { from { transform: translateY(24px); opacity: .6 } to { transform: none; opacity: 1 } }
 @media (prefers-reduced-motion: reduce) { .sheet { animation: none } }
-.sheet h3 { margin: 0 0 4px; font-family: var(--f-display); font-size: 22px; font-weight: 650 }
+.sheet h3 { margin: 0 0 4px; font-family: var(--f-display); font-size: 27px; font-weight: 600 }
 .sheet .sub { color: var(--muted); font-size: 13px; margin-bottom: 14px }
 .sheet .group { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px }
-.sheet .group h4 { margin: 0 0 8px; font-size: 14px; display: flex; gap: 8px; align-items: baseline }
+.sheet .group h4 { margin: 0 0 8px; font-family: var(--f-display); font-size: 19px; font-weight: 600; display: flex; gap: 8px; align-items: baseline }
 .sheet .group.r h4 { color: var(--recv) }
 .sheet .group.o h4 { color: var(--accent) }
 .greg { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; align-items: center; padding: 8px 0 }
@@ -168,16 +186,16 @@ nav.tabs button[aria-current="page"] { color: var(--accent); font-weight: 600 }
 .first input:checked + .dot::after { content: ""; width: 12px; height: 12px; border-radius: 50%; background: var(--accent) }
 .first input:focus-visible + .dot { outline: 2px solid var(--accent); outline-offset: 2px }
 .first .nm .note { display: block; font-size: 12px }
-.entry { padding: 14px 16px 16px; border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--line)) }
+.entry { padding: 16px 16px 18px; border-top-width: 4px; border-top-color: var(--gold) }
 .entry-head { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center }
 .entry-date { text-align: center; display: grid; gap: 2px; position: relative }
-.entry-date b { font-family: var(--f-display); font-size: 21px; font-weight: 650; line-height: 1.2 }
-.entry-date .eyebrow { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); font-weight: 600 }
+.entry-date b { font-family: var(--f-display); font-size: 27px; font-weight: 600; line-height: 1.15 }
+.entry-date .eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: .18em; color: var(--gold); font-weight: 600 }
 .entry-date input[type=date] { justify-self: center; border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; background: var(--surface); font-size: 13px; color: var(--muted) }
 .linkbtn { border: 0; background: none; color: var(--accent); font-size: 13px; padding: 6px 0 0; display: block; margin: 0 auto; text-decoration: underline }
 .entry-cols { display: grid; gap: 0 22px; margin-top: 4px }
-.entry .group { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px }
-.entry .group h4 { margin: 0 0 8px; font-size: 15px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap }
+.entry .group { border-top: 1px solid var(--gold-soft); padding-top: 12px; margin-top: 12px }
+.entry .group h4 { margin: 0 0 8px; font-family: var(--f-display); font-size: 21px; font-weight: 600; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap }
 .entry .group.r h4 { color: var(--recv) } .entry .group.o h4 { color: var(--accent) }
 .entry .actions { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap }
 .entry .actions .spacer { flex: 1 }
@@ -211,7 +229,7 @@ nav.tabs button[aria-current="page"] { color: var(--accent); font-weight: 600 }
 .inout { display: grid; grid-template-columns: 1fr 1fr; gap: 10px }
 .inout .card { padding: 12px 14px }
 .inout .lab { font-size: 12px; color: var(--muted) }
-.inout .val { font-family: var(--f-display); font-size: 22px; font-weight: 650 }
+.inout .val { font-family: var(--f-display); font-size: 29px; font-weight: 600 }
 .inout .in .val { color: var(--good) } .inout .out .val { color: var(--bad) }
 .txn { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 10px 2px; border-bottom: 1px solid var(--line); width: 100%; background: none; border-left: 0; border-right: 0; border-top: 0; text-align: left }
 .txn:last-child { border-bottom: 0 }
@@ -240,6 +258,7 @@ nav.tabs button[aria-current="page"] { color: var(--accent); font-weight: 600 }
 code.blob { display: block; max-height: 140px; overflow: auto; font-size: 11px; background: var(--surface-2); padding: 8px; border-radius: 8px; word-break: break-all; margin-top: 8px }
 </style>
 
+<header class="band" id="band"></header>
 <div class="wrap" id="app"></div>
 <div id="layer"></div>
 
@@ -472,7 +491,12 @@ const ICONS = {
 function render() {
   document.body.classList.toggle('no-ml', !S.settings.showMl);
   const app = $('#app');
-  let html = `<header class="top"><div class="brand">Intentionally<small>Mass book &amp; personal accounts</small></div></header>`;
+  let holding = 0;
+  try { const mk = monthKeyOf(todayISO()); holding = sumObj(closingFrom(openingOf(mk), monthTotals(mk))); } catch (e) {}
+  $('#band').innerHTML = `<div class="in"><svg class="cross" viewBox="0 0 34 44" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M17 3v38M6 14h22"/><circle cx="17" cy="14" r="4.2" stroke-width="1.4"/></svg>
+    <div class="brand">Intentionally<small>Mass book · Personal accounts</small></div>
+    ${ui.tab === 'mass' ? `<div class="hold">Holding<b class="num">${holding}</b>intentions</div>` : ''}</div>`;
+  let html = '';
   if (S.meta.example) html += `<div class="banner"><span>These are example entries so you can see how the app works.</span><button class="btn small" data-act="clear-examples">Clear examples and start</button></div>`;
   html += ui.tab === 'mass' ? renderMass() : ui.tab === 'personal' ? renderPersonal() : renderSettings();
   app.innerHTML = html;
