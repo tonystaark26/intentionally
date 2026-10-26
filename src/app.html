@@ -339,7 +339,7 @@ const ui = { tab: 'mass', day: todayISO(), month: monthKeyOf(todayISO()), massVi
 function blank() {
   return {
     v: 1,
-    settings: { types: DEFAULT_TYPES.map(t => ({ ...t })), typesRev: TYPES_REV, showMl: true, gClientId: '' },
+    settings: { types: DEFAULT_TYPES.map(t => ({ ...t })), typesRev: TYPES_REV, showMl: false, mlOff: 1, gClientId: '' },
     mass: {},
     personal: { accounts: [{ id: 'cash', name: 'Cash in hand', kind: 'cash', opening: 0 }], txns: [] },
     meta: { updatedAt: new Date().toISOString(), example: false, lastDriveBackup: null, driveEmail: null, welcomed: false, driveLinked: false },
@@ -395,7 +395,7 @@ function load() {
 }
 function migrate(s) {
   const b = blank();
-  const typesRev = s.settings?.typesRev || 1;
+  const typesRev = s.settings?.typesRev || 1, mlOff = s.settings?.mlOff;
   s.settings = { ...b.settings, ...(s.settings || {}) };
   if (!Array.isArray(s.settings.types) || !s.settings.types.length) s.settings.types = b.settings.types;
   // First preview guessed the columns from a photo; swap to the book's real columns if untouched.
@@ -407,6 +407,8 @@ function migrate(s) {
     if (!T.some(t => t.id === 'gregorian')) { const i = T.findIndex(t => t.id === 'nithya'); T.splice(i >= 0 ? i + 1 : T.length, 0, { ...DEFAULT_TYPES.find(t => t.id === 'gregorian') }); }
     s.settings.typesRev = TYPES_REV;
   }
+  // Malayalam labels became opt-in (user, 2026-10-26): turn them off once on phones that had the old default.
+  if (!mlOff) { s.settings.showMl = false; s.settings.mlOff = 1; }
   s.mass = s.mass || {};
   s.personal = s.personal || b.personal;
   s.personal.accounts = s.personal.accounts || [];
