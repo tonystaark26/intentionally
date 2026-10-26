@@ -618,8 +618,8 @@ function renderMass() {
   const extra = offTypes().filter(t => !t.recv);
   if (extra.length) h += `<tr><td colspan="6" class="note" style="text-align:left;padding-top:10px">Also offered this month: ${extra.map(t => `${esc(t.en)} <b>${n0(tot.o[t.id])}</b>`).join(' · ')}</td></tr>`;
   if (typeById(BINATION)) {
-    const yb = yearBinations(y), rate = n0(typeById('ordinary')?.rate) || 150;
-    h += `<tr><td colspan="6" class="note" style="text-align:left">Binations in ${y}: <b>${yb}</b> × ${money(rate)} = <b>${money(yb * rate)}</b></td></tr>`;
+    const yb = yearBinations(y);
+    h += `<tr><td colspan="6" class="note" style="text-align:left">Binations in ${y}: <b>${yb}</b></td></tr>`;
   }
   h += `</tbody></table></div>
     <div class="row"><button class="btn small" data-act="edit-opening">Opening balance</button><button class="btn small" data-act="edit-handed">Handed over</button><span class="spacer"></span><button class="btn small primary" data-act="export-month">Export month</button></div>`;
@@ -841,9 +841,9 @@ async function drawMonthPage(k) {
 
   // Summary line
   const recd = Object.entries(tot.r).reduce((a, [id, v]) => a + n0(v) * perIntention(id), 0);
-  const yb = typeById(BINATION) ? yearBinations(y) : 0, rate = n0(typeById('ordinary')?.rate) || 150;
+  const yb = typeById(BINATION) ? yearBinations(y) : 0;
   const parts = [`Intentions received ${recd}`, `Masses offered ${sumObj(tot.o)}`, `Stipends ${money(tot.amt)}`, `Still to offer ${sumObj(close)}`];
-  if (typeById(BINATION)) parts.push(`Binations this month ${n0(tot.o[BINATION])}, in ${y} so far ${yb} × ${money(rate)} = ${money(yb * rate)}`);
+  if (typeById(BINATION)) parts.push(`Binations this month ${n0(tot.o[BINATION])}, in ${y} so far ${yb}`);
   txt(parts.join('   ·   '), P, yEnd + 52, sans(500, 25), INK);
   const greg = gregorianSets().filter(st => !st.done && !st.carried);
   if (greg.length) txt('Gregorian: ' + greg.map(st => { const due = new Date(st.date + 'T00:00'); due.setDate(due.getDate() + GREG_DAYS); return `${st.said} of ${st.need} said, finish by ${due.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`; }).join(' · '), P, yEnd + 92, sans(400, 23), SOFT);
