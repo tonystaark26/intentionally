@@ -183,6 +183,8 @@ nav.tabs button { position: relative }
 .entry-date .eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: .18em; color: var(--gold); font-weight: 600 }
 .entry-date input[type=date] { justify-self: center; border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; background: var(--surface); font-size: 13px; color: var(--muted) }
 .linkbtn { border: 0; background: none; color: var(--accent); font-size: 13px; padding: 6px 0 0; display: block; margin: 0 auto; text-decoration: underline }
+.defrow { display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: baseline; margin: 0 0 6px }
+.defrow .linkbtn { margin: 0; padding: 0 }
 .entry-cols { display: grid; gap: 0 22px; margin-top: 4px }
 .entry .group { border-top: 1px solid var(--gold-soft); padding-top: 12px; margin-top: 12px }
 .entry .group h4 { margin: 0 0 8px; font-family: var(--f-display); font-size: 21px; font-weight: 600; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap }
@@ -558,7 +560,7 @@ function renderEntry(pending) {
   const R = recvTypes(), O = offTypes().filter(t => t.id !== BINATION), off = splitOffered(e.o);
   // A day not yet saved starts with Ordinary Mass ticked; a saved day shows what was saved.
   const saved = !!S.mass[k]?.days?.[d];
-  const sel = saved ? off.first : (typeById('ordinary')?.off ? 'ordinary' : '');
+  const sel = saved ? off.first : defaultFirst();
   const isToday = iso === todayISO();
   const dateLabel = new Date(iso + 'T00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
   return `<div class="card entry" id="entry" data-fkind="${esc(e.fk || 'ordinary')}">
@@ -577,6 +579,7 @@ function renderEntry(pending) {
       </section>
       <section class="group o"><h4>Mass offered ${ml(ML.offered)}</h4>
         <p class="note" style="margin:0 0 4px">Tick the first Mass you offered. Every Mass after it is a bination.</p>
+        <div class="defrow"><span class="note">New days start with <b>${esc(typeById(defaultFirst())?.en || 'No Mass')}</b>.</span><button type="button" class="linkbtn" data-act="set-default">Make the ticked one my default</button></div>
         <div class="firstlist">
           ${O.map(t => `<label class="first"><input type="radio" name="first" value="${t.id}" ${sel === t.id ? 'checked' : ''}><span class="dot" aria-hidden="true"></span><span class="nm">${esc(t.en)} ${ml(t.ml)}${t.id === GREGORIAN ? '<span class="note">One of the 30 days</span>' : ''}</span></label>`).join('')}
           <label class="first"><input type="radio" name="first" value="" ${sel ? '' : 'checked'}><span class="dot" aria-hidden="true"></span><span class="nm">No Mass offered</span></label>
@@ -587,6 +590,11 @@ function renderEntry(pending) {
     <div class="field"><label for="rem">Notes</label><textarea id="rem" placeholder="Name of the person, intention, place">${esc(e.rem || '')}</textarea></div>
     <div class="actions">${S.mass[k]?.days?.[d] ? '<button class="btn danger" data-act="day-clear">Clear this day</button>' : ''}<span class="spacer"></span><span class="note">Holding <b class="num">${pending}</b> intentions</span><button class="btn primary big-btn" data-act="day-save">Save</button></div>
   </div>`;
+}
+// The Mass ticked on a new day. Each priest can pick his own, e.g. Gregorian while a set is running.
+function defaultFirst() {
+  const id = S.settings.defaultFirst ?? 'ordinary';
+  return id && typeById(id)?.off && id !== BINATION ? id : '';
 }
 function mountEntry() {
   const en = $('#entry'); if (!en) return;
@@ -712,6 +720,7 @@ function renderSettings() {
       <label class="ck"><input type="checkbox" data-act="type-off" ${t.off ? 'checked' : ''}></label>
       <button class="btn small" data-act="type-del" aria-label="Remove ${esc(t.en)}">✕</button></div>`).join('')}
     <div class="row" style="margin-top:12px"><button class="btn small" data-act="type-add">Add Mass type</button><button class="btn small" data-act="type-reset">Restore default list</button></div>
+    <div class="field"><label for="deffirst">Mass ticked on a new day</label><select id="deffirst" data-act="def-first">${offTypes().filter(t => t.id !== BINATION).map(t => `<option value="${t.id}" ${defaultFirst() === t.id ? 'selected' : ''}>${esc(t.en)}</option>`).join('')}<option value="" ${defaultFirst() ? '' : 'selected'}>No Mass</option></select><span class="note">Change this if you offer the same kind every day, for example Gregorian Mass while a set of 30 is running.</span></div>
     <label class="switch"><span>Show Malayalam labels</span><input type="checkbox" id="showml" data-act="show-ml" ${S.settings.showMl ? 'checked' : ''}></label>
   </div>`;
 
@@ -978,6 +987,7 @@ document.addEventListener('click', e => {
     case 'day-shift': { const dt = new Date(ui.day + 'T00:00'); dt.setDate(dt.getDate() + Number(v)); ui.day = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`; ui.month = monthKeyOf(ui.day); render(); break; }
     case 'day-today': ui.day = todayISO(); ui.month = monthKeyOf(ui.day); render(); break;
     case 'day-save': saveDay(); break;
+    case 'set-default': { const v2 = $('#entry input[name="first"]:checked')?.value ?? ''; S.settings.defaultFirst = v2; save(); render(); toast(`New days will start with ${typeById(v2)?.en || 'No Mass'}`); break; }
     case 'day-clear': confirmSheet('Clear this day?', 'All entries for this day will be removed.', 'Clear day', () => { delete monthData(monthKeyOf(ui.day)).days[Number(ui.day.slice(8))]; save(); render(); toast('Day cleared'); }); break;
     case 'edit-handed': handedEditor(); break;
     case 'handed-save': { const sh = $('.sheet'), M = monthData(ui.month); M.handed = { counts: readCounts(sh, 'h_'), rem: $('#hrem', sh).value.trim() }; save(); closeSheet(); render(); toast('Saved'); break; }
@@ -1025,6 +1035,7 @@ document.addEventListener('change', e => {
   else if (act === 'type-recv') t.recv = el.checked;
   else if (act === 'type-off') t.off = el.checked;
   else if (act === 'show-ml') S.settings.showMl = el.checked;
+  else if (act === 'def-first') S.settings.defaultFirst = el.value;
   else if (act === 'gcid') S.settings.gClientId = el.value.trim();
   else return;
   save(); if (!['type-en', 'type-ml', 'type-rate'].includes(act)) render();
