@@ -735,7 +735,7 @@ async function drawMonthPage(k) {
   try { await Promise.all(['600 30px "Noto Sans Malayalam"', '400 30px "IBM Plex Sans"', '600 30px "IBM Plex Sans"', '700 60px "Cormorant Garamond"'].map(f => document.fonts.load(f))); } catch (_) {}
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const c = cv.getContext('2d');
-  const showMl = S.settings.showMl;
+  const showMl = true; // the exported page always carries the Malayalam labels, like the paper book (user, 2026-10-26)
   const BLUE = '#17106c', GOLD = '#9c7317', INK = '#1d1b33', SOFT = '#6b6889', LINE = '#c9c6dc', RECV = '#0f7457', OFF = '#9b1c2c';
   const sans = (w, s) => `${w} ${s}px "IBM Plex Sans", system-ui, sans-serif`, mlf = (w, s) => `${w} ${s}px "Noto Sans Malayalam", sans-serif`;
   const txt = (s, x, y, font, color = INK, align = 'left') => { c.font = font; c.fillStyle = color; c.textAlign = align; c.fillText(s, x, y); };
