@@ -1213,23 +1213,37 @@ function loadGis() {
     document.head.appendChild(s);
   });
 }
-async function gToken() {
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
+async function gToken(again) {
   if (GD.token && Date.now() < GD.exp) return GD.token;
   await loadGis();
   const cid = GOOGLE_CLIENT_ID || S.settings.gClientId;
   return new Promise((res, rej) => {
     const c = google.accounts.oauth2.initTokenClient({
-      client_id: cid, scope: 'https://www.googleapis.com/auth/drive.appdata email',
-      callback: r => { if (r.error) return rej(new Error('Google sign-in was cancelled.')); GD.token = r.access_token; GD.exp = Date.now() + (r.expires_in - 60) * 1000; res(GD.token); },
+      client_id: cid, scope: DRIVE_SCOPE + ' email',
+      callback: r => {
+        if (r.error) return rej(new Error('Google sign-in was cancelled.'));
+        // Google lets people untick the Drive permission on its consent screen; without it every Drive call is refused (403).
+        if (!google.accounts.oauth2.hasGrantedAllScopes(r, DRIVE_SCOPE)) { GD.token = null; GD.again = true; return rej(new Error('Google sign-in needs the Drive permission. Try again and tick the box that lets Intentionally store its backup in your Google Drive.')); }
+        GD.token = r.access_token; GD.exp = Date.now() + (r.expires_in - 60) * 1000; res(GD.token); },
       error_callback: () => rej(new Error('Google sign-in was closed before it finished.')),
     });
-    c.requestAccessToken();
+    const ask = again || GD.again; GD.again = false;
+    c.requestAccessToken(ask ? { prompt: 'consent' } : {});
   });
 }
 async function gfetch(url, opt = {}) {
   const tok = await gToken();
   const r = await fetch(url, { ...opt, headers: { ...(opt.headers || {}), Authorization: 'Bearer ' + tok } });
-  if (!r.ok) throw new Error('Google Drive answered ' + r.status + '. Try again in a moment.');
+  if (!r.ok) {
+    let reason = '';
+    try { const j = await r.json(); reason = j.error?.errors?.[0]?.reason || j.error?.status || ''; } catch (_) {}
+    if (r.status === 401 || r.status === 403) GD.token = null; // ask Google again on the next try, showing the consent screen
+    if (reason === 'insufficientPermissions' || reason === 'PERMISSION_DENIED' || reason === 'ACCESS_TOKEN_SCOPE_INSUFFICIENT') { GD.again = true; throw new Error('Google Drive permission was not given. Tap again and tick the box that lets Intentionally store its backup in your Google Drive.'); }
+    if (reason === 'accessNotConfigured' || reason === 'SERVICE_DISABLED') throw new Error('Google Drive is not switched on for this app yet. Please tell the person who shared Intentionally with you.');
+    if (r.status === 403) { GD.again = true; throw new Error('Google Drive refused access (403' + (reason ? ', ' + reason : '') + '). Tap again and allow Drive access.'); }
+    throw new Error('Google Drive answered ' + r.status + '. Try again in a moment.');
+  }
   return r;
 }
 async function gFind() {
