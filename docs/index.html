@@ -288,6 +288,8 @@ nav.tabs button { position: relative }
 .welcome .gl { display: inline-flex; align-items: center; justify-content: center; gap: 10px }
 .welcome .wel { display: block; margin-top: 10px; font-family: var(--f-display); font-size: 24px; color: var(--band-gold); font-weight: 600 }
 .welcome .fine { font-size: 12.5px; margin-top: 18px }
+.steps { padding-left: 22px; margin: 10px 0 }
+.steps li { margin: 8px 0 }
 code.blob { display: block; max-height: 140px; overflow: auto; font-size: 11px; background: var(--surface-2); padding: 8px; border-radius: 8px; word-break: break-all; margin-top: 8px }
 </style>
 
@@ -581,6 +583,7 @@ function renderMass() {
   if (pending > limit) h += `<div class="banner"><span>You are holding <b>${pending}</b> intentions. Only ${limit} should be kept at a time. Hand over the extra ${pending - limit}.</span><button class="btn small" data-act="edit-handed">Hand over</button></div>`;
 
   if (driveDue()) h += `<div class="banner"><span>Your last Google Drive backup was ${S.meta.lastDriveBackup ? new Date(S.meta.lastDriveBackup).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'never'}.</span><button class="btn small" data-act="g-backup">Back up now</button></div>`;
+  if (showInstall() && !S.meta.installHidden) h += `<div class="banner"><span>Put Intentionally on your home screen so it opens like an app, even without internet.</span><span class="row" style="gap:6px"><button class="btn small" data-act="install-hide">Later</button><button class="btn small primary" data-act="install">Install</button></span></div>`;
   h += renderEntry(pending);
   h += renderGregorians();
 
@@ -951,6 +954,7 @@ function renderSettings() {
     <label class="switch"><span>Show Malayalam labels</span><input type="checkbox" id="showml" data-act="show-ml" ${S.settings.showMl ? 'checked' : ''}></label>
   </div>`;
 
+  if (showInstall()) h += `<div class="section-h"><h3>Install</h3></div><div class="card"><p class="note" style="margin-top:0">Put Intentionally on your home screen so it opens like an app and works without internet.</p><button class="btn primary" data-act="install">Install on this phone</button></div>`;
   h += `<div class="section-h"><h3>Backup</h3></div><div class="card">
     <p class="note" style="margin-top:0">Everything is stored only on this phone. Keep a backup so nothing is lost if the phone is changed or reset.</p>
     <div class="row"><button class="btn" data-act="export">Save backup file</button><label class="btn" for="importfile">Restore from file</label>
@@ -1261,6 +1265,32 @@ function queueDriveBackup() {
 const driveDue = () => S.meta.driveLinked && canGoogle() && (!S.meta.lastDriveBackup || new Date(S.meta.updatedAt) - new Date(S.meta.lastDriveBackup) > 60000)
   && Date.now() - new Date(S.meta.lastDriveBackup || 0) > 2 * 86400000;
 
+/* ---------- Install on the phone ---------- */
+let installEvt = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if (S) render(); });
+window.addEventListener('appinstalled', () => { installEvt = null; toast('Installed. Open Intentionally from your home screen.'); render(); });
+const isInstalled = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const showInstall = () => !isInstalled() && /^https?:$/.test(location.protocol) && !/claude\.ai|claudeusercontent|anthropic/.test(location.hostname);
+async function installApp() {
+  if (installEvt) { installEvt.prompt(); try { await installEvt.userChoice; } catch (_) {} installEvt = null; render(); return; }
+  const ios = isIOS(), share = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>';
+  openSheet(`<h2>Put Intentionally on your home screen</h2>
+    ${ios ? `<ol class="steps">
+      <li>Open this page in <b>Safari</b>. If you opened it from WhatsApp, tap the compass or "Open in Safari" first.</li>
+      <li>Tap the <b>Share</b> button ${share} at the bottom of the screen.</li>
+      <li>Scroll down and tap <b>Add to Home Screen</b>.</li>
+      <li>Tap <b>Add</b> at the top right.</li>
+      <li>Open Intentionally from the new icon on your home screen. Use it from there every day.</li></ol>`
+    : `<ol class="steps">
+      <li>Open this page in <b>Chrome</b>. If you opened it from WhatsApp, tap the ⋮ menu and choose <b>Open in Chrome</b>.</li>
+      <li>Tap the <b>⋮</b> menu at the top right.</li>
+      <li>Tap <b>Install app</b> (or <b>Add to Home screen</b>, then <b>Install</b>).</li>
+      <li>Open Intentionally from the new icon. Use it from there every day.</li></ol>`}
+    <p class="note">Once installed it opens like any other app and works without internet.</p>
+    <div class="actions"><span class="spacer"></span><button class="btn primary" data-act="close">OK</button></div>`);
+}
+
 /* ---------- Welcome ---------- */
 const isBlankData = () => !Object.keys(S.mass).length && !S.personal.txns.length;
 function renderWelcome() {
@@ -1353,6 +1383,8 @@ document.addEventListener('click', e => {
     case 'g-backup': gBackup(); break;
     case 'w-google': welcomeGoogle(el); break;
     case 'w-skip': finishWelcome(); break;
+    case 'install': installApp(); break;
+    case 'install-hide': S.meta.installHidden = true; save(); render(); toast('You can install it later from Settings.'); break;
     case 'w-sample': { const nm = $('#wname')?.value.trim(); S = sample(); if (nm) S.settings.priestName = nm; finishWelcome(); break; }
     case 'g-restore': gRestore(); break;
     case 'erase': confirmSheet('Erase everything?', 'All Mass entries, accounts and transactions on this phone will be deleted. Save a backup first if you may need them.', 'Erase everything', () => { S = blank(); save(); render(); toast('All data erased'); }); break;
