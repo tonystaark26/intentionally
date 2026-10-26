@@ -556,6 +556,9 @@ function renderEntry(pending) {
   const iso = ui.day, k = monthKeyOf(iso), d = Number(iso.slice(8));
   const e = S.mass[k]?.days?.[d] || {};
   const R = recvTypes(), O = offTypes().filter(t => t.id !== BINATION), off = splitOffered(e.o);
+  // A day not yet saved starts with Ordinary Mass ticked; a saved day shows what was saved.
+  const saved = !!S.mass[k]?.days?.[d];
+  const sel = saved ? off.first : (typeById('ordinary')?.off ? 'ordinary' : '');
   const isToday = iso === todayISO();
   const dateLabel = new Date(iso + 'T00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
   return `<div class="card entry" id="entry" data-fkind="${esc(e.fk || 'ordinary')}">
@@ -575,8 +578,8 @@ function renderEntry(pending) {
       <section class="group o"><h4>Mass offered ${ml(ML.offered)}</h4>
         <p class="note" style="margin:0 0 4px">Tick the first Mass you offered. Every Mass after it is a bination.</p>
         <div class="firstlist">
-          ${O.map(t => `<label class="first"><input type="radio" name="first" value="${t.id}" ${off.first === t.id ? 'checked' : ''}><span class="dot" aria-hidden="true"></span><span class="nm">${esc(t.en)} ${ml(t.ml)}${t.id === GREGORIAN ? '<span class="note">One of the 30 days</span>' : ''}</span></label>`).join('')}
-          <label class="first"><input type="radio" name="first" value="" ${off.first ? '' : 'checked'}><span class="dot" aria-hidden="true"></span><span class="nm">No Mass offered</span></label>
+          ${O.map(t => `<label class="first"><input type="radio" name="first" value="${t.id}" ${sel === t.id ? 'checked' : ''}><span class="dot" aria-hidden="true"></span><span class="nm">${esc(t.en)} ${ml(t.ml)}${t.id === GREGORIAN ? '<span class="note">One of the 30 days</span>' : ''}</span></label>`).join('')}
+          <label class="first"><input type="radio" name="first" value="" ${sel ? '' : 'checked'}><span class="dot" aria-hidden="true"></span><span class="nm">No Mass offered</span></label>
         </div>
         ${typeById(BINATION) ? `<div class="stepper-row" style="margin-top:6px"><span class="nm">${esc(typeById(BINATION).en)} ${ml(typeById(BINATION).ml)}<span class="note">Masses after the first. Each one uses up one Ordinary Mass intention you hold.</span></span>${stepper('o_' + BINATION, off.bin)}</div>` : ''}
       </section>
