@@ -271,12 +271,29 @@ nav.tabs button { position: relative }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(88px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; z-index: 60; font-size: 14px; box-shadow: var(--shadow); max-width: calc(100% - 32px) }
 .switch { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0 }
 .switch input { width: 20px; height: 20px; accent-color: var(--accent) }
+.welcome { position: fixed; inset: 0; z-index: 50; overflow: auto; background: linear-gradient(160deg, var(--band-1), var(--band-2) 75%); color: var(--band-ink); display: grid; place-items: center; padding: max(24px, env(safe-area-inset-top, 0px)) 20px max(24px, env(safe-area-inset-bottom, 0px)) }
+.welcome .in { width: 100%; max-width: 420px; text-align: center }
+.welcome .emblem { width: 168px; height: auto; -webkit-mask-image: radial-gradient(ellipse 70% 72% at 50% 50%, #000 62%, transparent 100%); mask-image: radial-gradient(ellipse 70% 72% at 50% 50%, #000 62%, transparent 100%) }
+.welcome h1 { font-family: var(--f-display); font-weight: 700; font-size: 40px; line-height: 1; margin: 6px 0 6px }
+.welcome .sub { color: var(--band-gold); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; font-weight: 500 }
+.welcome p { color: color-mix(in srgb, var(--band-ink) 82%, transparent); font-size: 14.5px; margin: 16px 0 }
+.welcome .field { text-align: left; margin: 18px 0 }
+.welcome .field label { color: var(--band-gold); font-size: 12px; letter-spacing: .08em; text-transform: uppercase }
+.welcome input { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--band-gold) 45%, transparent); background: rgba(255,255,255,.07); color: var(--band-ink); font-size: 16px }
+.welcome .choices { display: grid; gap: 10px; margin-top: 8px }
+.welcome .choices button { padding: 14px 16px; border-radius: 12px; font-weight: 600; font-size: 15.5px; border: 1px solid color-mix(in srgb, var(--band-gold) 55%, transparent); background: transparent; color: var(--band-ink) }
+.welcome .choices button.gold { background: var(--band-gold); color: #1a1240; border-color: var(--band-gold) }
+.welcome .choices button.plain { border: 0; font-weight: 500; text-decoration: underline; text-underline-offset: 3px; color: var(--band-gold) }
+.welcome .choices button[disabled] { opacity: .55 }
+.welcome .gl { display: inline-flex; align-items: center; justify-content: center; gap: 10px }
+.welcome .fine { font-size: 12.5px; margin-top: 18px }
 code.blob { display: block; max-height: 140px; overflow: auto; font-size: 11px; background: var(--surface-2); padding: 8px; border-radius: 8px; word-break: break-all; margin-top: 8px }
 </style>
 
 <header class="band" id="band"></header>
 <div class="wrap" id="app"></div>
 <div id="layer"></div>
+<div id="welcome"></div>
 
 <script>
 (() => {
@@ -337,7 +354,7 @@ function blank() {
     settings: { types: DEFAULT_TYPES.map(t => ({ ...t })), typesRev: TYPES_REV, showMl: true, gClientId: '' },
     mass: {},
     personal: { accounts: [{ id: 'cash', name: 'Cash in hand', kind: 'cash', opening: 0 }], txns: [] },
-    meta: { updatedAt: new Date().toISOString(), example: false, lastDriveBackup: null, driveEmail: null },
+    meta: { updatedAt: new Date().toISOString(), example: false, lastDriveBackup: null, driveEmail: null, welcomed: false, driveLinked: false },
   };
 }
 
@@ -386,7 +403,7 @@ function sample() {
 
 function load() {
   try { const raw = localStorage.getItem(STORE_KEY); if (raw) return migrate(JSON.parse(raw)); } catch (e) {}
-  return sample();
+  return blank();
 }
 function migrate(s) {
   const b = blank();
@@ -412,6 +429,7 @@ function migrate(s) {
 function save() {
   S.meta.updatedAt = new Date().toISOString();
   try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { toast('Could not save on this device. Storage may be full or blocked.'); }
+  queueDriveBackup();
 }
 
 /* ---------- Mass ledger math ---------- */
@@ -561,6 +579,7 @@ function renderMass() {
   let h = `<div class="stack">`;
   if (pending > limit) h += `<div class="banner"><span>You are holding <b>${pending}</b> intentions. Only ${limit} should be kept at a time. Hand over the extra ${pending - limit}.</span><button class="btn small" data-act="edit-handed">Hand over</button></div>`;
 
+  if (driveDue()) h += `<div class="banner"><span>Your last Google Drive backup was ${S.meta.lastDriveBackup ? new Date(S.meta.lastDriveBackup).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'never'}.</span><button class="btn small" data-act="g-backup">Back up now</button></div>`;
   h += renderEntry(pending);
   h += renderGregorians();
 
@@ -1162,7 +1181,7 @@ function importBackup(text) {
   try { data = JSON.parse(text); } catch (e) { return toast('That file is not an Intentionally backup.'); }
   if (!data || !data.settings || !data.mass || !data.personal) return toast('That file is not an Intentionally backup.');
   confirmSheet('Replace data with this backup?', `The backup was last saved ${esc(new Date(data.meta?.updatedAt || Date.now()).toLocaleString('en-IN'))}. Everything now on this phone will be replaced.`, 'Replace', () => {
-    S = migrate(data); S.meta.example = false; save(); render(); toast('Backup restored');
+    const linked = S.meta.driveLinked, email = S.meta.driveEmail; S = migrate(data); S.meta.example = false; S.meta.welcomed = true; if (linked) { S.meta.driveLinked = true; S.meta.driveEmail = email; } save(); render(); toast('Backup restored');
   });
 }
 
@@ -1203,9 +1222,9 @@ async function gFind() {
 async function gWhoAmI() {
   try { const r = await gfetch('https://www.googleapis.com/oauth2/v3/userinfo'); S.meta.driveEmail = (await r.json()).email || null; } catch (e) {}
 }
-async function gBackup() {
+async function gBackup(quiet) {
   try {
-    toast('Backing up to Google Drive…');
+    if (!quiet) toast('Backing up to Google Drive…');
     const f = await gFind();
     const meta = f ? { name: BACKUP_NAME } : { name: BACKUP_NAME, parents: ['appDataFolder'] };
     const body = new FormData();
@@ -1214,8 +1233,10 @@ async function gBackup() {
     const url = f ? `https://www.googleapis.com/upload/drive/v3/files/${f.id}?uploadType=multipart` : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
     await gfetch(url, { method: f ? 'PATCH' : 'POST', body });
     await gWhoAmI();
-    S.meta.lastDriveBackup = new Date().toISOString(); save(); render(); toast('Backed up to Google Drive');
-  } catch (e) { toast(e.message); }
+    S.meta.driveLinked = true; S.meta.lastDriveBackup = new Date().toISOString();
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (_) {}
+    if (!quiet) { render(); toast('Backed up to Google Drive'); }
+  } catch (e) { if (!quiet) toast(e.message); }
 }
 async function gRestore() {
   try {
@@ -1224,6 +1245,55 @@ async function gRestore() {
     const r = await gfetch(`https://www.googleapis.com/drive/v3/files/${f.id}?alt=media`);
     importBackup(await r.text());
   } catch (e) { toast(e.message); }
+}
+
+const gCid = () => GOOGLE_CLIENT_ID || S.settings.gClientId;
+const canGoogle = () => !!gCid() && /^https?:$/.test(location.protocol) && !/claude\.ai|claudeusercontent|anthropic/.test(location.hostname);
+// Once linked, a copy goes to Drive a little while after each change, whenever Google sign-in is still fresh.
+// When it has lapsed, the Mass book shows a reminder with a "Back up now" button instead of opening a sign-in window by itself.
+let driveTimer;
+function queueDriveBackup() {
+  if (!S.meta.driveLinked || !canGoogle()) return;
+  clearTimeout(driveTimer);
+  driveTimer = setTimeout(() => { if (GD.token && Date.now() < GD.exp) gBackup(true); }, 15000);
+}
+const driveDue = () => S.meta.driveLinked && canGoogle() && (!S.meta.lastDriveBackup || new Date(S.meta.updatedAt) - new Date(S.meta.lastDriveBackup) > 60000)
+  && Date.now() - new Date(S.meta.lastDriveBackup || 0) > 2 * 86400000;
+
+/* ---------- Welcome ---------- */
+const isBlankData = () => !Object.keys(S.mass).length && !S.personal.txns.length;
+function renderWelcome() {
+  const g = canGoogle();
+  $('#welcome').innerHTML = `<div class="welcome" role="dialog" aria-modal="true" aria-labelledby="wtitle"><div class="in">
+    <img class="emblem" src="${EMBLEM}" alt="Mar Thoma Sleeva">
+    <h1 id="wtitle">Intentionally</h1><div class="sub">Mass book · Personal accounts</div>
+    <p>Keep your Mass intentions and your own accounts on this phone. It works without internet.</p>
+    <div class="field"><label for="wname">Your name (optional)</label><input id="wname" placeholder="Fr. …" autocomplete="name" value="${esc(S.settings.priestName || '')}"></div>
+    <div class="choices">
+      ${g ? `<button class="gold" data-act="w-google"><span class="gl"><svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.9 6.1C12.5 13.6 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 2.9-2.2 5.4-4.7 7.1l7.6 5.9c4.4-4.1 6.9-10.1 6.9-17.5z"/><path fill="#FBBC05" d="M10.6 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.9c-2.1 1.4-4.9 2.3-8.3 2.3-6.2 0-11.5-4.2-13.4-9.9l-7.9 6.1C6.6 42.6 14.6 48 24 48z"/></svg>Sign in with Google for backup</span></button>` : ''}
+      <button class="${g ? '' : 'gold'}" data-act="w-skip">${g ? 'Start without signing in' : 'Start'}</button>
+      ${isBlankData() ? '<button class="plain" data-act="w-sample">Look around with example entries first</button>' : ''}
+    </div>
+    <p class="fine">${g ? 'Signing in keeps a private copy on your own Google Drive, so nothing is lost if the phone is changed. Only this app can see that copy. You can sign in later from Settings.' : 'Your entries stay only on this phone. Keep a backup from Settings.'}</p>
+  </div></div>`;
+}
+function finishWelcome() {
+  const nm = $('#wname')?.value.trim(); if (nm) S.settings.priestName = nm;
+  S.meta.welcomed = true; save();
+  $('#welcome').innerHTML = ''; render();
+}
+async function welcomeGoogle(btn) {
+  btn.disabled = true;
+  try {
+    await gToken(); await gWhoAmI();
+    const f = await gFind();
+    S.meta.driveLinked = true;
+    finishWelcome();
+    if (f) {
+      const r = await gfetch(`https://www.googleapis.com/drive/v3/files/${f.id}?alt=media`);
+      importBackup(await r.text());
+    } else gBackup();
+  } catch (e) { btn.disabled = false; toast(e.message); }
 }
 
 /* ---------- Events ---------- */
@@ -1272,7 +1342,7 @@ document.addEventListener('click', e => {
     }
     case 'acct-del': S.personal.accounts = S.personal.accounts.filter(a => a.id !== v); save(); closeSheet(); render(); break;
     case 'close': closeSheet(); break;
-    case 'clear-examples': confirmSheet('Clear the example entries?', 'The app will start empty with a Cash account, ready for your own entries.', 'Clear examples', () => { S = blank(); save(); render(); toast('Ready for your entries'); }); break;
+    case 'clear-examples': confirmSheet('Clear the example entries?', 'The app will start empty with a Cash account, ready for your own entries.', 'Clear examples', () => { const keep = { ...S.meta, example: false }, nm = S.settings.priestName; S = blank(); S.meta = { ...S.meta, welcomed: true, driveLinked: keep.driveLinked, driveEmail: keep.driveEmail, lastDriveBackup: keep.lastDriveBackup }; if (nm) S.settings.priestName = nm; save(); render(); toast('Ready for your entries'); }); break;
     case 'type-add': S.settings.types.push({ id: 't' + uid().slice(0, 6), en: 'New Mass type', ml: '', recv: true, off: true }); save(); render(); break;
     case 'type-del': { const i = Number(el.closest('.typerow').dataset.i); const t = S.settings.types[i];
       confirmSheet(`Remove “${t.en}”?`, 'The column disappears from your book. Numbers already entered stay saved and come back if you add it again with Restore default list.', 'Remove', () => { S.settings.types.splice(i, 1); save(); render(); }); break; }
@@ -1280,6 +1350,9 @@ document.addEventListener('click', e => {
     case 'export': exportBackup(); break;
     case 'copy-backup': { const j = $('#exportbox').dataset.json; navigator.clipboard?.writeText(j).then(() => toast('Backup text copied'), () => toast('Copy failed. Select the text and copy it.')); break; }
     case 'g-backup': gBackup(); break;
+    case 'w-google': welcomeGoogle(el); break;
+    case 'w-skip': finishWelcome(); break;
+    case 'w-sample': { const nm = $('#wname')?.value.trim(); S = sample(); if (nm) S.settings.priestName = nm; finishWelcome(); break; }
     case 'g-restore': gRestore(); break;
     case 'erase': confirmSheet('Erase everything?', 'All Mass entries, accounts and transactions on this phone will be deleted. Save a backup first if you may need them.', 'Erase everything', () => { S = blank(); save(); render(); toast('All data erased'); }); break;
   }
@@ -1315,6 +1388,7 @@ S = load();
 try { ui.massView = localStorage.getItem('intentionally.view') || 'days'; } catch (e) {}
 save();
 render();
+if (!S.meta.welcomed) renderWelcome();
 try { navigator.storage?.persist?.(); } catch (e) {}
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
   // When a newer version of the app takes over, reload once so it shows straight away.
