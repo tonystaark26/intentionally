@@ -267,8 +267,8 @@ nav.tabs button[aria-current="page"] svg { background: var(--secondary) }
 .switch input { width: 20px; height: 20px; accent-color: var(--primary) }
 .welcome { position: fixed; inset: 0; z-index: 50; overflow: auto; background: var(--bg); color: var(--ink); display: grid; place-items: center; padding: max(28px, env(safe-area-inset-top, 0px)) 22px max(28px, env(safe-area-inset-bottom, 0px)) }
 .welcome .in { width: 100%; max-width: 420px; text-align: center }
-.welcome .logo { width: 72px; height: 72px; border-radius: 22px; background: var(--primary); color: #fff; display: grid; place-items: center; margin: 0 auto 18px; box-shadow: 0 8px 22px rgba(55,107,96,.28) }
-.welcome .logo svg { width: 36px; height: 36px }
+.welcome .logo { width: 88px; height: 88px; border-radius: 26px; background: var(--primary); color: #fff; display: grid; place-items: center; margin: 0 auto 18px; box-shadow: 0 8px 22px rgba(55,107,96,.28) }
+.welcome .logo svg { width: 60px; height: 60px }
 .welcome h1 { font-weight: 700; font-size: 32px; line-height: 1.1; margin: 0 0 6px; letter-spacing: -.02em }
 .welcome .sub { color: var(--muted); font-size: 14px; font-weight: 500 }
 .welcome p { color: var(--ink); font-size: 15px; margin: 22px 0 }
@@ -551,6 +551,7 @@ function acctBalance(id) {
 const acctName = id => S.personal.accounts.find(a => a.id === id)?.name || 'Removed account';
 
 /* ---------- Render ---------- */
+const LOGO = '<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="14" r="7.5"/><path d="M32 10.5v7M28.5 14h7"/><path d="M19 25h26c0 10-5.6 15.5-13 16.5C24.6 40.5 19 35 19 25z"/><path d="M32 41.5v9M24 53h16"/></g></svg>'; // Chalice and host
 const ICONS = {
   mass: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H19v15H5.5A1.5 1.5 0 0 0 4 19.5z"/><path d="M4 19.5A1.5 1.5 0 0 0 5.5 21H19v-3"/><path d="M8.5 7.5h6.5M8.5 11h4.5"/></svg>',
   personal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 14.5h2"/><path d="M6 6V5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>',
@@ -1316,7 +1317,7 @@ const isBlankData = () => !Object.keys(S.mass).length && !S.personal.txns.length
 function renderWelcome() {
   const g = canGoogle();
   $('#welcome').innerHTML = `<div class="welcome" role="dialog" aria-modal="true" aria-labelledby="wtitle"><div class="in">
-    <div class="logo" aria-hidden="true">${ICONS.mass}</div>
+    <div class="logo" aria-hidden="true">${LOGO}</div>
     <h1 id="wtitle">Intentionally</h1><div class="sub">Mass book · Personal accounts</div>
     <p>This will help you intentionally offer all your intentions. Every intention is valuable and we won't ever miss any request.<br><b class="wel">Welcome.</b></p>
     <div class="field"><label for="wname">Your name (optional)</label><input id="wname" placeholder="Fr. …" autocomplete="name" value="${esc(S.settings.priestName || '')}"></div>
