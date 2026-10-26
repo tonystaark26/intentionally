@@ -300,6 +300,8 @@ code.blob { display: block; max-height: 140px; overflow: auto; font-size: 11px; 
 
 /* ---------- Config ---------- */
 // Paste the OAuth Web Client ID from Google Cloud Console here before publishing the installed app.
+// Pilot feedback goes straight to the app owner from the priest's own email app.
+const FEEDBACK_EMAIL = 'tonystaark26@gmail.com';
 const GOOGLE_CLIENT_ID = '219765073498-gmf2ck67a7e4uda9pa92qdk9ujusihi9.apps.googleusercontent.com';
 const STORE_KEY = 'intentionally.v1';
 // Mar Thoma Sleeva with peacocks, supplied by the user for the header.
@@ -956,6 +958,8 @@ function renderSettings() {
   const cid = GOOGLE_CLIENT_ID || S.settings.gClientId;
   let h = `<div class="stack">`;
 
+  h += `<div class="section-h"><h3>Feedback</h3></div><div class="card"><p class="note" style="margin-top:0">Tell us what works well and what we should change. Every suggestion helps.</p><button class="btn primary" data-act="feedback">Send feedback</button></div>`;
+
   h += `<div class="section-h"><h3>Mass types</h3></div><div class="card">
     <p class="note" style="margin-top:0">These are the columns of your Mass book. Rename them to match your book, and set the usual stipend for each one so amounts fill in by themselves. Tick <b>Recv</b> for intentions you receive and must offer, and <b>Off</b> for Masses you record as offered.</p>
     <div class="typehead"><span>English</span><span class="h-ml">Malayalam</span><span class="h-rate">Stipend ₹</span><span>Recv</span><span>Off</span><span></span></div>
@@ -1405,6 +1409,17 @@ document.addEventListener('click', e => {
     case 'w-google': welcomeGoogle(el); break;
     case 'w-skip': finishWelcome(); break;
     case 'install': installApp(); break;
+    case 'feedback': openSheet(`<h2>Send feedback</h2><p class="note">Write what you like, what is confusing, or what you would like added. It opens your email app with this message ready to send.</p>
+      <div class="field"><label for="fbtext">Your feedback</label><textarea id="fbtext" rows="6" placeholder="For example: the Gregorian reminder helped me, but…"></textarea></div>
+      <div class="actions"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="fb-send">Send</button></div>`); break;
+    case 'fb-send': {
+      const text = $('#fbtext')?.value.trim();
+      if (!text) { toast('Please write your feedback first'); break; }
+      const who = S.settings.priestName || 'A priest', phone = isIOS() ? 'iPhone' : /android/i.test(navigator.userAgent) ? 'Android' : 'Computer';
+      const body = `${text}\n\n— ${who} (${phone}${isInstalled() ? ', installed app' : ', browser'})`;
+      location.href = `mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent('Intentionally feedback')}&body=${encodeURIComponent(body)}`;
+      closeSheet(); toast('Opening your email app…'); break;
+    }
     case 'install-hide': S.meta.installHidden = true; save(); render(); toast('You can install it later from Settings.'); break;
     case 'w-sample': { const nm = $('#wname')?.value.trim(); S = sample(); if (nm) S.settings.priestName = nm; finishWelcome(); break; }
     case 'g-restore': gRestore(); break;
