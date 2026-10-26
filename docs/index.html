@@ -2,7 +2,7 @@
 <html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0a063e">
+<meta name="theme-color" content="#ebe6fb">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -14,44 +14,39 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Cormorant+Garamond:wght@500;600;700&family=Noto+Sans+Malayalam:wght@400;600&display=swap">
 <style>
-/* Layout: a deep blue and gold header band carrying the Mar Thoma Sleeva, like the cover of a Mass book, then one narrow column of pages; tab bar fixed at the bottom */
+/* Layout: a soft pastel header band carrying the Mar Thoma Sleeva, like the cover of a Mass book, then one narrow column of pages; tab bar fixed at the bottom.
+   One light pastel palette everywhere, also on phones set to dark mode, so every button reads the same. */
 :root {
-  --bg: #f1f0f7;
+  --bg: #f7f5fc;          /* lavender paper */
   --surface: #ffffff;
-  --surface-2: #f4f3fa;
-  --ink: #15123b;
-  --muted: #5f5c82;
-  --line: #dedbee;
-  --accent: #26248a;      /* royal blue of the Mar Thoma Sleeva ground: offered side, primary actions */
+  --surface-2: #f2effa;
+  --ink: #26234f;
+  --muted: #6b6890;
+  --line: #e4e0f2;
+  --accent: #4b47a0;      /* periwinkle from the Sleeva ground: offered side, links */
   --accent-ink: #ffffff;
-  --gold: #9c7317;        /* gilt of the cross, darkened to read on white */
-  --gold-soft: #eadcb0;
-  --recv: #0f7457;        /* peacock green: received side */
-  --good: #2c7a3f;
-  --bad: #a3362b;
-  --warn-bg: #fbefd0;
+  --gold: #8f6a17;        /* honey gilt, dark enough to read on white */
+  --gold-soft: #efe1b8;
+  --recv: #2f7d65;        /* sage from the peacocks: received side */
+  --good: #3b7d4d;
+  --bad: #b04a3f;
+  --warn-bg: #fdf1d6;
   --warn-ink: #6b4d00;
-  --band-1: #0a063e;
-  --band-2: #17106c;
-  --band-ink: #fdf3dc;
-  --band-gold: #e6b84c;
-  --shadow: 0 1px 2px rgba(15,10,60,.06), 0 8px 26px rgba(15,10,60,.09);
+  --band-1: #ebe6fb;      /* pastel lavender */
+  --band-2: #fbefe0;      /* pastel peach */
+  --band-ink: #2b2766;
+  --band-gold: #9a7420;
+  --primary-bg: #d9d6f8;  /* pastel periwinkle buttons with dark ink */
+  --primary-line: #b9b4ee;
+  --primary-ink: #25215e;
+  --honey-bg: #f6e3a8;
+  --honey-ink: #4a3608;
+  --shadow: 0 1px 2px rgba(60,50,120,.05), 0 8px 26px rgba(60,50,120,.08);
   --f-display: "Cormorant Garamond", Georgia, "Noto Sans Malayalam", serif;
   --f-body: "IBM Plex Sans", "Noto Sans Malayalam", system-ui, -apple-system, "Segoe UI", sans-serif;
   --f-ml: "Noto Sans Malayalam", "IBM Plex Sans", system-ui, sans-serif;
+  color-scheme: light;
 }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #08072a; --surface: #110f3b; --surface-2: #19164b; --ink: #ecebfa; --muted: #a8a6cd; --line: #2b2862;
-  --accent: #a4a9ff; --accent-ink: #0a0830; --gold: #e6b84c; --gold-soft: #3e3519; --recv: #52d2a3; --good: #6fcf86; --bad: #f08a7e;
-  --warn-bg: #3a2e12; --warn-ink: #f3d78a; --band-1: #0a063e; --band-2: #100b52; --band-ink: #fdf3dc; --band-gold: #e6b84c;
-  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 26px rgba(0,0,0,.45);
-  color-scheme: dark } }
-:root[data-theme="dark"] {
-  --bg: #08072a; --surface: #110f3b; --surface-2: #19164b; --ink: #ecebfa; --muted: #a8a6cd; --line: #2b2862;
-  --accent: #a4a9ff; --accent-ink: #0a0830; --gold: #e6b84c; --gold-soft: #3e3519; --recv: #52d2a3; --good: #6fcf86; --bad: #f08a7e;
-  --warn-bg: #3a2e12; --warn-ink: #f3d78a; --band-1: #0a063e; --band-2: #100b52; --band-ink: #fdf3dc; --band-gold: #e6b84c;
-  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 26px rgba(0,0,0,.45);
-  color-scheme: dark }
 
 * { box-sizing: border-box }
 html, body { background: var(--bg); color: var(--ink) }
@@ -69,7 +64,7 @@ body.no-ml .ml { display: none }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--band-1) }
 header.band { background: linear-gradient(155deg, var(--band-1), var(--band-2) 70%); color: var(--band-ink); border-bottom: 3px double var(--band-gold); margin-top: calc(-1 * env(safe-area-inset-top, 0px)); padding-top: env(safe-area-inset-top, 0px) }
 header.band .in { max-width: 760px; margin: 0 auto; display: flex; align-items: center; gap: 14px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 16px 18px }
-header.band .emblem { height: 70px; width: auto; flex: none; border-radius: 6px; -webkit-mask-image: radial-gradient(ellipse 70% 72% at 50% 50%, #000 62%, transparent 100%); mask-image: radial-gradient(ellipse 70% 72% at 50% 50%, #000 62%, transparent 100%) }
+header.band .emblem { height: 70px; width: auto; flex: none; border-radius: 12px; border: 2px solid var(--gold-soft); box-shadow: 0 2px 10px rgba(60,50,120,.15) }
 @media (max-width: 420px) { header.band .emblem { height: 58px } .brand { font-size: 27px } }
 header.band .brand { flex: 1; min-width: 0 }
 header.band .hold { text-align: right; font-size: 12px; color: var(--band-gold); letter-spacing: .06em; text-transform: uppercase; line-height: 1.2 }
@@ -142,7 +137,7 @@ table { border-collapse: collapse; width: 100% }
 .book td.z { color: var(--line) }
 
 .btn { border: 1px solid var(--gold-soft); background: var(--surface); border-radius: 6px; padding: 10px 14px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; justify-content: center }
-.btn.primary { background: linear-gradient(170deg, var(--band-2), var(--band-1)); color: var(--band-ink); border-color: var(--band-1); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--band-gold) 45%, transparent) }
+.btn.primary { background: var(--primary-bg); color: var(--primary-ink); border-color: var(--primary-line); font-weight: 600 }
 .btn.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--line)) }
 .btn.small { padding: 6px 10px; font-size: 13px; border-radius: 8px }
 .btn[disabled] { opacity: .5; cursor: not-allowed }
@@ -152,7 +147,7 @@ table { border-collapse: collapse; width: 100% }
 .exp-prev { margin: 10px 0; min-height: 120px; display: grid; place-items: center; background: var(--surface-2, #eee); border: 1px solid var(--line) }
 .exp-prev img { display: block; width: 100%; height: auto }
 
-.fab { box-shadow: var(--shadow), inset 0 0 0 1px color-mix(in srgb, var(--band-gold) 45%, transparent); background: linear-gradient(170deg, var(--band-2), var(--band-1)); position: fixed; right: max(18px, calc(env(safe-area-inset-right, 0px) + 18px)); bottom: calc(80px + env(safe-area-inset-bottom, 0px)); width: 58px; height: 58px; border-radius: 18px; background: var(--accent); color: var(--band-ink); border: 0; font-size: 28px; box-shadow: var(--shadow); z-index: 20 }
+.fab { box-shadow: var(--shadow); border: 1px solid var(--primary-line); background: var(--primary-bg); position: fixed; right: max(18px, calc(env(safe-area-inset-right, 0px) + 18px)); bottom: calc(80px + env(safe-area-inset-bottom, 0px)); width: 58px; height: 58px; border-radius: 18px; color: var(--primary-ink); font-size: 28px; box-shadow: var(--shadow); z-index: 20 }
 
 nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; background: var(--surface); border-top: 3px double var(--gold-soft); display: flex; justify-content: center; padding-bottom: env(safe-area-inset-bottom, 0px); padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px) }
 nav.tabs .in { display: grid; grid-template-columns: repeat(3, 1fr); width: 100%; max-width: 760px }
@@ -271,18 +266,19 @@ nav.tabs button { position: relative }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(88px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; z-index: 60; font-size: 14px; box-shadow: var(--shadow); max-width: calc(100% - 32px) }
 .switch { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0 }
 .switch input { width: 20px; height: 20px; accent-color: var(--accent) }
-.welcome { position: fixed; inset: 0; z-index: 50; overflow: auto; background: linear-gradient(160deg, var(--band-1), var(--band-2) 75%); color: var(--band-ink); display: grid; place-items: center; padding: max(24px, env(safe-area-inset-top, 0px)) 20px max(24px, env(safe-area-inset-bottom, 0px)) }
+.welcome { position: fixed; inset: 0; z-index: 50; overflow: auto; background: linear-gradient(165deg, var(--band-1), var(--bg) 55%, var(--band-2)); color: var(--band-ink); display: grid; place-items: center; padding: max(24px, env(safe-area-inset-top, 0px)) 20px max(24px, env(safe-area-inset-bottom, 0px)) }
 .welcome .in { width: 100%; max-width: 420px; text-align: center }
-.welcome .emblem { width: 168px; height: auto; -webkit-mask-image: radial-gradient(ellipse 70% 72% at 50% 50%, #000 62%, transparent 100%); mask-image: radial-gradient(ellipse 70% 72% at 50% 50%, #000 62%, transparent 100%) }
+.welcome .emblem { width: 168px; height: auto; border-radius: 18px; border: 3px solid var(--gold-soft); box-shadow: 0 6px 22px rgba(60,50,120,.18) }
 .welcome h1 { font-family: var(--f-display); font-weight: 700; font-size: 40px; line-height: 1; margin: 6px 0 6px }
 .welcome .sub { color: var(--band-gold); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; font-weight: 500 }
 .welcome p { color: color-mix(in srgb, var(--band-ink) 82%, transparent); font-size: 14.5px; margin: 16px 0 }
 .welcome .field { text-align: left; margin: 18px 0 }
 .welcome .field label { color: var(--band-gold); font-size: 12px; letter-spacing: .08em; text-transform: uppercase }
-.welcome input { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--band-gold) 45%, transparent); background: rgba(255,255,255,.07); color: var(--band-ink); font-size: 16px }
+.welcome input { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--band-gold) 45%, transparent); background: rgba(255,255,255,.8); color: var(--ink); font-size: 16px }
 .welcome .choices { display: grid; gap: 10px; margin-top: 8px }
 .welcome .choices button { padding: 14px 16px; border-radius: 12px; font-weight: 600; font-size: 15.5px; border: 1px solid color-mix(in srgb, var(--band-gold) 55%, transparent); background: transparent; color: var(--band-ink) }
-.welcome .choices button.gold { background: var(--band-gold); color: #1a1240; border-color: var(--band-gold) }
+.welcome .choices button.gold { background: var(--honey-bg); color: var(--honey-ink); border-color: #e6cd84 }
+.welcome .choices button:not(.gold):not(.plain) { background: rgba(255,255,255,.75) }
 .welcome .choices button.plain { border: 0; font-weight: 500; text-decoration: underline; text-underline-offset: 3px; color: var(--band-gold) }
 .welcome .choices button[disabled] { opacity: .55 }
 .welcome .gl { display: inline-flex; align-items: center; justify-content: center; gap: 10px }
