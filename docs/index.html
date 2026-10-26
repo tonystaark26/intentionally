@@ -205,6 +205,14 @@ nav.tabs button { position: relative }
 .big-btn { padding: 12px 28px; font-size: 16px }
 @media (min-width: 700px) { .entry-cols { grid-template-columns: 1fr 1fr } }
 .day.sel { background: color-mix(in srgb, var(--accent) 7%, transparent) }
+.cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px }
+.cal-h { text-align: center; font-size: 11px; color: var(--muted); letter-spacing: .08em }
+.cal-d { aspect-ratio: 1; max-width: 100%; border: 1px solid var(--line); background: var(--surface); border-radius: 50%; font-variant-numeric: tabular-nums; font-size: 15px; display: grid; place-items: center }
+.cal-d.done { background: var(--surface-2); color: var(--muted); border-style: dashed }
+.cal-d[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); border-style: solid }
+.cal-d[disabled] { opacity: .3; cursor: default }
+.cal-key { display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: -1px; margin-left: 8px; border: 1px dashed var(--muted); background: var(--surface-2) }
+.cal-key.sel { background: var(--accent); border: 1px solid var(--accent) }
 .fbox { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; margin-top: 8px; display: grid; gap: 8px }
 .fbox .lab { font-size: 13px; font-weight: 600 }
 .fbox .note { margin: 0 }
@@ -535,7 +543,8 @@ function renderMass() {
     <h2>${esc(monthName(k))}<span class="ml">${ML.month}: ${ML_MONTHS[m - 1]} · ${ML.year}: ${y}</span></h2>
     <button class="iconbtn" data-act="month" data-v="1" aria-label="Next month">›</button></div>
     <div class="row between"><div class="seg" role="group" aria-label="View"><button data-act="mview" data-v="days" aria-pressed="${ui.massView === 'days'}">Days</button><button data-act="mview" data-v="book" aria-pressed="${ui.massView === 'book'}">Book page</button></div>
-    <span class="note">Tap a day to change it</span></div>`;
+    <button class="btn small" data-act="bulk">Mark several days</button></div>
+    <p class="note" style="margin:-4px 2px 0">Tap a day to change it.</p>`;
   h += ui.massView === 'days' ? renderDays(k) : renderBook(k, open, tot, close);
 
   // Month-end account
@@ -821,6 +830,58 @@ function saveDay() {
   ui.month = k; save(); render(); toast(entry.noMass ? 'Saved as No Mass' : 'Saved');
 }
 
+// Mark many days at once, for a priest who did not enter each day as it came.
+function bulkEditor() {
+  const k = ui.month, M = S.mass[k] || { days: {} }, n = daysIn(k), [y, m] = k.split('-').map(Number);
+  const lead = new Date(y, m - 1, 1).getDay();
+  const tISO = todayISO();
+  const O = offTypes().filter(t => t.id !== BINATION), def = defaultFirst();
+  let grid = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(w => `<span class="cal-h">${w}</span>`).join('') + '<span></span>'.repeat(lead);
+  for (let d = 1; d <= n; d++) {
+    const iso = `${k}-${pad(d)}`, e = M.days?.[d], future = iso > tISO;
+    const marked = e && (splitOffered(e.o).first || e.noMass);
+    grid += `<button type="button" class="cal-d ${marked ? 'done' : ''}" data-bd="${d}" ${future ? 'disabled' : ''} aria-pressed="false" aria-label="${d} ${esc(monthName(k))}${marked ? ', already marked' : ''}">${d}</button>`;
+  }
+  openSheet(`<h3>Mark several days</h3><div class="sub">${esc(monthName(k))}. Tap the days you want to mark, then choose the Mass. Intentions received and notes on those days stay as they are.</div>
+    <div class="row" style="margin-bottom:8px"><button type="button" class="btn small" id="bd-empty">Select all days not yet marked</button><button type="button" class="btn small" id="bd-none">Clear selection</button></div>
+    <div class="cal">${grid}</div>
+    <p class="note"><span class="cal-key done"></span> already marked <span class="cal-key sel"></span> selected</p>
+    <div class="group o"><h4>Mass offered on each of these days</h4>
+      <div class="firstlist">
+        ${O.map(t => `<label class="first"><input type="radio" name="bfirst" value="${t.id}" ${def === t.id ? 'checked' : ''}><span class="dot" aria-hidden="true"></span><span class="nm">${esc(t.en)} ${ml(t.ml)}</span></label>`).join('')}
+        <label class="first"><input type="radio" name="bfirst" value="" ${def ? '' : 'checked'}><span class="dot" aria-hidden="true"></span><span class="nm">No Mass offered</span></label>
+      </div>
+      ${typeById(BINATION) ? `<div class="stepper-row" style="margin-top:6px"><span class="nm">Binations on each day<span class="note">Leave at 0 if there were none.</span></span>${stepper('b_bin', 0)}</div>` : ''}
+    </div>
+    <p class="note" id="bd-warn" hidden></p>
+    <div class="actions"><button class="btn" data-act="close">Cancel</button><button class="btn primary" id="bd-save" disabled>Mark 0 days</button></div>`,
+  sh => {
+    const days = () => [...sh.querySelectorAll('.cal-d[aria-pressed="true"]')].map(b => Number(b.dataset.bd));
+    const update = () => {
+      const sel = days(), redo = sel.filter(d => { const e = M.days?.[d]; return e && (splitOffered(e.o).first || e.noMass); }).length;
+      const btn = $('#bd-save', sh); btn.disabled = !sel.length; btn.textContent = `Mark ${sel.length} day${sel.length === 1 ? '' : 's'}`;
+      const w = $('#bd-warn', sh); w.hidden = !redo; w.textContent = `${redo} of the selected days already have a Mass marked. Their Mass will be replaced.`;
+    };
+    sh.querySelectorAll('.cal-d').forEach(b => b.addEventListener('click', () => { b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') !== 'true'); update(); }));
+    $('#bd-empty', sh).addEventListener('click', () => { sh.querySelectorAll('.cal-d:not([disabled])').forEach(b => b.setAttribute('aria-pressed', !b.classList.contains('done'))); update(); });
+    $('#bd-none', sh).addEventListener('click', () => { sh.querySelectorAll('.cal-d').forEach(b => b.setAttribute('aria-pressed', 'false')); update(); });
+    $('#bd-save', sh).addEventListener('click', () => {
+      const first = sh.querySelector('input[name="bfirst"]:checked')?.value || '';
+      const bin = Math.max(0, Math.round(n0($('#st-b_bin', sh)?.value)));
+      const MM = monthData(k), sel = days();
+      for (const d of sel) {
+        const e = MM.days[d] || { r: {}, amt: 0, rem: '' };
+        e.o = {}; if (first) e.o[first] = 1; if (bin) e.o[BINATION] = bin;
+        if (first === FOUNDATION && !e.fk) e.fk = 'ordinary';
+        if (sumObj(e.o)) delete e.noMass; else e.noMass = true;
+        MM.days[d] = e;
+      }
+      save(); closeSheet(); render();
+      toast(`Marked ${sel.length} day${sel.length === 1 ? '' : 's'} as ${typeById(first)?.en || 'No Mass'}`);
+    });
+  });
+}
+
 function handedEditor() {
   const M = monthData(ui.month), hd = M.handed || {};
   openSheet(`<h3>Handed over</h3><div class="sub">${esc(monthName(ui.month))}. Intentions you handed over. They leave your balance.</div>
@@ -998,6 +1059,7 @@ document.addEventListener('click', e => {
     case 'day-shift': { const dt = new Date(ui.day + 'T00:00'); dt.setDate(dt.getDate() + Number(v)); ui.day = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`; ui.month = monthKeyOf(ui.day); render(); break; }
     case 'day-today': ui.day = todayISO(); ui.month = monthKeyOf(ui.day); render(); break;
     case 'day-save': saveDay(); break;
+    case 'bulk': bulkEditor(); break;
     case 'set-default': { const v2 = $('#entry input[name="first"]:checked')?.value ?? ''; S.settings.defaultFirst = v2; save(); render(); toast(`New days will start with ${typeById(v2)?.en || 'No Mass'}`); break; }
     case 'day-clear': confirmSheet('Clear this day?', 'All entries for this day will be removed.', 'Clear day', () => { delete monthData(monthKeyOf(ui.day)).days[Number(ui.day.slice(8))]; save(); render(); toast('Day cleared'); }); break;
     case 'edit-handed': handedEditor(); break;
