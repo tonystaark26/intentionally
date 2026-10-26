@@ -9,7 +9,7 @@ mkdir -p $OUT
   echo '<html lang="en"><head>'
   echo '<meta charset="utf-8">'
   echo '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
-  echo '<meta name="theme-color" content="#ebe6fb">'
+  echo '<meta name="theme-color" content="#F5F3EE">'
   echo '<link rel="manifest" href="manifest.webmanifest">'
   echo '<link rel="icon" href="icon.svg" type="image/svg+xml">'
   echo '<link rel="apple-touch-icon" href="icon-192.png">'
