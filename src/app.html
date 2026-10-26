@@ -454,12 +454,12 @@ function gregorianSets() {
   const sets = [], keys = Object.keys(S.mass).sort();
   const firstManual = keys.find(k => S.mass[k].opening?.manual);
   const carried = firstManual ? n0(S.mass[firstManual].opening.counts?.[GREGORIAN]) : 0;
-  if (carried) sets.push({ date: null, carried: true, need: carried, said: 0, rem: '' });
+  if (carried) sets.push({ date: null, carried: true, need: carried, said: 0, rem: '', days: [] });
   const give = (n, iso) => {
     for (const st of sets) {
       if (!n) break;
       const room = st.need - st.said; if (room <= 0) continue;
-      const take = Math.min(room, n); st.said += take; n -= take;
+      const take = Math.min(room, n); st.said += take; n -= take; st.days.push(iso);
       if (st.said >= st.need) st.done = iso;
     }
   };
@@ -467,12 +467,23 @@ function gregorianSets() {
     const M = S.mass[k];
     for (const d of Object.keys(M.days || {}).map(Number).sort((x, y) => x - y)) {
       const e = M.days[d], iso = `${k}-${pad(d)}`;
-      for (let i = 0; i < n0(e.r?.[GREGORIAN]); i++) sets.push({ date: iso, need: GREG_SET, said: 0, rem: e.rem || '' });
+      for (let i = 0; i < n0(e.r?.[GREGORIAN]); i++) sets.push({ date: iso, need: GREG_SET, said: 0, rem: e.rem || '', days: [] });
       give(n0(e.o?.[GREGORIAN]), iso);
     }
     give(n0(M.handed?.counts?.[GREGORIAN]), `${k}-${pad(daysIn(k))}`);
   }
   return sets;
+}
+// A Gregorian set is offered on consecutive days for one intention, so every day of the set carries that set's intention.
+// Returns the set a day belongs to (or, for a day not yet saved, the set still running then) and which of the 30 days it is.
+function gregFor(iso) {
+  if (!typeById(GREGORIAN)) return null;
+  const sets = gregorianSets();
+  let st = sets.find(x => x.days.includes(iso));
+  if (!st) st = sets.find(x => (x.carried || x.date <= iso) && (!x.done || x.done > iso));
+  if (!st) return null;
+  const before = st.days.filter(x => x < iso).length;
+  return { set: st, rem: st.rem, day: Math.min(st.need, before + 1), need: st.need };
 }
 function renderGregorians() {
   if (!typeById(GREGORIAN)) return '';
@@ -540,10 +551,14 @@ function render() {
   const app = $('#app');
   // Header card: the intention of today's Mass (the Mass ticked for today and its note). The holding count is shown by Save and in the Month-end account.
   const tISO = todayISO(), te = S.mass[monthKeyOf(tISO)]?.days?.[Number(tISO.slice(8))], tFirst = te ? splitOffered(te.o).first : '';
-  const tName = tFirst ? (typeById(tFirst)?.en || tFirst) + (tFirst === FOUNDATION && te.fk ? ` (${typeById(te.fk)?.en.replace(/ Mass$/, '') || te.fk})` : '') : te?.noMass ? 'No Mass' : '';
+  const tg = (!te || tFirst === GREGORIAN) ? gregFor(tISO) : null;
+  let tName = tFirst ? (typeById(tFirst)?.en || tFirst) + (tFirst === FOUNDATION && te.fk ? ` (${typeById(te.fk)?.en.replace(/ Mass$/, '') || te.fk})` : '') : te?.noMass ? 'No Mass' : '';
+  let tRem = te?.rem || '';
+  // During a Gregorian set, today's intention is the set's intention, even before today is marked.
+  if (tg) { tName = `Gregorian · day ${tg.day} of ${tg.need}`; tRem = tg.rem || tRem; }
   $('#band').innerHTML = `<div class="in">
     <div class="brand">Intentionally<small>Mass book · Personal accounts</small></div>
-    ${ui.tab === 'mass' ? `<button class="hold" data-act="day-today" aria-label="Go to today's entry"><span>Today's intention</span><b>${tName ? esc(tName) : 'Not marked yet'}</b>${te?.rem ? `<em>${esc(te.rem)}</em>` : ''}</button>` : ''}</div>`;
+    ${ui.tab === 'mass' ? `<button class="hold" data-act="day-today" aria-label="Go to today's entry"><span>Today's intention</span><b>${tName ? esc(tName) : 'Not marked yet'}</b>${tRem ? `<em>${esc(tRem)}</em>` : ''}</button>` : ''}</div>`;
   let html = '';
   if (S.meta.example) html += `<div class="banner"><span>These are example entries so you can see how the app works.</span><button class="btn small" data-act="clear-examples">Clear examples and start</button></div>`;
   html += ui.tab === 'mass' ? renderMass() : ui.tab === 'personal' ? renderPersonal() : renderSettings();
@@ -619,7 +634,10 @@ function renderEntry(pending) {
   const R = recvTypes(), O = offTypes().filter(t => t.id !== BINATION), off = splitOffered(e.o);
   // A day not yet saved starts with Ordinary Mass ticked; a saved day shows what was saved.
   const saved = !!S.mass[k]?.days?.[d];
-  const sel = saved ? off.first : defaultFirst();
+  // While a Gregorian set is running, a new day starts with Gregorian ticked and the set's intention in the notes.
+  const g = gregFor(iso), gRun = !saved && g && typeById(GREGORIAN)?.off;
+  const sel = saved ? off.first : gRun ? GREGORIAN : defaultFirst();
+  const remVal = saved ? e.rem || '' : gRun ? g.rem : '';
   const isToday = iso === todayISO();
   const dateLabel = new Date(iso + 'T00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
   return `<div class="card entry" id="entry" data-fkind="${esc(e.fk || 'ordinary')}">
@@ -640,13 +658,13 @@ function renderEntry(pending) {
         <p class="note" style="margin:0 0 4px">Tick the first Mass you offered. Every Mass after it is a bination.</p>
         <div class="defrow"><span class="note">New days start with <b>${esc(typeById(defaultFirst())?.en || 'No Mass')}</b>.</span><button type="button" class="linkbtn" data-act="set-default">Make the ticked one my default</button></div>
         <div class="firstlist">
-          ${O.map(t => `<label class="first"><input type="radio" name="first" value="${t.id}" ${sel === t.id ? 'checked' : ''}><span class="dot" aria-hidden="true"></span><span class="nm">${esc(t.en)} ${ml(t.ml)}${t.id === GREGORIAN ? '<span class="note">One of the 30 days</span>' : ''}</span></label>`).join('')}
+          ${O.map(t => `<label class="first"><input type="radio" name="first" value="${t.id}" ${sel === t.id ? 'checked' : ''}><span class="dot" aria-hidden="true"></span><span class="nm">${esc(t.en)} ${ml(t.ml)}${t.id === GREGORIAN ? `<span class="note">${g && (gRun || off.first === GREGORIAN) ? `Day ${g.day} of ${g.need}${g.rem ? ` · ${esc(g.rem)}` : ''}` : 'One of the 30 days'}</span>` : ''}</span></label>`).join('')}
           <label class="first"><input type="radio" name="first" value="" ${sel ? '' : 'checked'}><span class="dot" aria-hidden="true"></span><span class="nm">No Mass offered</span></label>
         </div>
         ${typeById(BINATION) ? `<div class="stepper-row" style="margin-top:6px"><span class="nm">${esc(typeById(BINATION).en)} ${ml(typeById(BINATION).ml)}<span class="note">Masses after the first. Each one uses up one Ordinary Mass intention you hold.</span></span>${stepper('o_' + BINATION, off.bin)}</div>` : ''}
       </section>
     </div>
-    <div class="field"><label for="rem">Notes</label><textarea id="rem" placeholder="Name of the person, intention, place">${esc(e.rem || '')}</textarea></div>
+    <div class="field"><label for="rem">Notes</label><textarea id="rem" placeholder="Name of the person, intention, place">${esc(remVal)}</textarea></div>
     <div class="actions">${S.mass[k]?.days?.[d] ? '<button class="btn danger" data-act="day-clear">Clear this day</button>' : ''}<span class="spacer"></span><span class="note">Holding <b class="num">${pending}</b> intentions</span><button class="btn primary big-btn" data-act="day-save">Save</button></div>
   </div>`;
 }
@@ -1024,6 +1042,7 @@ function saveDay() {
   const sh = $('#entry'), k = monthKeyOf(ui.day), d = Number(ui.day.slice(8)), M = monthData(k);
   const entry = { r: readCounts(sh, 'r_'), o: readOffered(sh), amt: n0($('#amt', sh).value), rem: $('#rem', sh).value.trim() };
   if (entry.r[FOUNDATION] || entry.o[FOUNDATION]) entry.fk = sh.dataset.fkind || 'ordinary';
+  if (entry.o[GREGORIAN] && !entry.rem) entry.rem = gregFor(ui.day)?.rem || '';
   // A day saved without any Mass ticked is logged as "No Mass".
   if (!sumObj(entry.o)) entry.noMass = true;
   M.days[d] = entry;
@@ -1073,6 +1092,7 @@ function bulkEditor() {
         const e = MM.days[d] || { r: {}, amt: 0, rem: '' };
         e.o = {}; if (first) e.o[first] = 1; if (bin) e.o[BINATION] = bin;
         if (first === FOUNDATION && !e.fk) e.fk = 'ordinary';
+        if (first === GREGORIAN && !e.rem) e.rem = gregFor(`${k}-${pad(d)}`)?.rem || '';
         if (sumObj(e.o)) delete e.noMass; else e.noMass = true;
         MM.days[d] = e;
       }
