@@ -448,9 +448,8 @@ function monthTotals(k) {
   }
   return { r, o, h: { ...(M.handed?.counts || {}) }, amt };
 }
-// Binations are usually Ordinary Masses, so each one uses up an Ordinary intention the priest holds.
-const BIN_USES = 'ordinary';
-const offeredOf = (tot, id) => n0(tot.o[id]) + (id === BIN_USES ? n0(tot.o.bination) : 0);
+// Binations are only counted (user, 2026-10-26); they never use up an intention the priest holds.
+const offeredOf = (tot, id) => n0(tot.o[id]);
 // One Gregorian intention is a set of 30 Masses on consecutive days, to be finished within 40 days.
 const GREGORIAN = 'gregorian', GREG_SET = 30, GREG_DAYS = 40;
 const perIntention = id => id === GREGORIAN ? GREG_SET : 1;
@@ -673,7 +672,7 @@ function renderEntry(pending) {
           ${O.map(t => `<label class="first"><input type="radio" name="first" value="${t.id}" ${sel === t.id ? 'checked' : ''}><span class="dot" aria-hidden="true"></span><span class="nm">${esc(t.en)} ${ml(t.ml)}${t.id === GREGORIAN ? `<span class="note">${g && (gRun || off.first === GREGORIAN) ? `Day ${g.day} of ${g.need}${g.rem ? ` · ${esc(g.rem)}` : ''}` : 'One of the 30 days'}</span>` : ''}</span></label>`).join('')}
           <label class="first"><input type="radio" name="first" value="" ${sel ? '' : 'checked'}><span class="dot" aria-hidden="true"></span><span class="nm">No Mass offered</span></label>
         </div>
-        ${typeById(BINATION) ? `<div class="stepper-row" style="margin-top:6px"><span class="nm">${esc(typeById(BINATION).en)} ${ml(typeById(BINATION).ml)}<span class="note">Masses after the first. Each one uses up one Ordinary Mass intention you hold.</span></span>${stepper('o_' + BINATION, off.bin)}</div>` : ''}
+        ${typeById(BINATION) ? `<div class="stepper-row" style="margin-top:6px"><span class="nm">${esc(typeById(BINATION).en)} ${ml(typeById(BINATION).ml)}<span class="note">Masses after the first.</span></span>${stepper('o_' + BINATION, off.bin)}</div>` : ''}
       </section>
     </div>
     <div class="field"><label for="rem">Notes</label><textarea id="rem" placeholder="Name of the person, intention, place">${esc(remVal)}</textarea></div>
