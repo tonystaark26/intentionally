@@ -1,6 +1,6 @@
 // Offline support. The app's own files load from the network first so updates show at once,
 // and fall back to the saved copy when offline. Fonts are served from the saved copy.
-const CACHE = 'intentionally-03b82e75';
+const CACHE = 'intentionally-72e3ff79';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));

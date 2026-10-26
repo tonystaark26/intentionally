@@ -165,6 +165,7 @@ nav.tabs button { position: relative }
 .greg .bar span { display: block; height: 100%; background: var(--accent) }
 .pill { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); white-space: nowrap }
 .pill.warn { background: var(--warn-bg); color: var(--warn-ink) }
+.pill.good { background: color-mix(in srgb, var(--good) 15%, transparent); color: var(--good) }
 .pill.bad { background: color-mix(in srgb, var(--bad) 15%, transparent); color: var(--bad) }
 .stepper-row .nm .note { display: block; font-size: 12px }
 .firstlist { display: grid; gap: 2px }
@@ -422,33 +423,53 @@ function closingFrom(open, tot) {
   for (const t of recvTypes()) out[t.id] = n0(open[t.id]) + n0(tot.r[t.id]) * perIntention(t.id) - offeredOf(tot, t.id) - n0(tot.h[t.id]);
   return out;
 }
-// Matches offered Gregorian Masses to received sets, oldest first, and returns the sets not yet finished.
-function openGregorians() {
-  const keys = Object.keys(S.mass).sort();
-  const sets = []; let pool = 0, firstOpen = null;
+// Walks the book in date order. Each Gregorian Mass offered goes to the oldest set already received and not yet finished,
+// so Masses offered before a set was received never count toward it.
+function gregorianSets() {
+  const sets = [], keys = Object.keys(S.mass).sort();
+  const firstManual = keys.find(k => S.mass[k].opening?.manual);
+  const carried = firstManual ? n0(S.mass[firstManual].opening.counts?.[GREGORIAN]) : 0;
+  if (carried) sets.push({ date: null, carried: true, need: carried, said: 0, rem: '' });
+  const give = (n, iso) => {
+    for (const st of sets) {
+      if (!n) break;
+      const room = st.need - st.said; if (room <= 0) continue;
+      const take = Math.min(room, n); st.said += take; n -= take;
+      if (st.said >= st.need) st.done = iso;
+    }
+  };
   for (const k of keys) {
     const M = S.mass[k];
-    if (firstOpen == null && M.opening?.manual) firstOpen = n0(M.opening.counts?.[GREGORIAN]);
-    pool += n0(M.handed?.counts?.[GREGORIAN]);
-    for (const d of Object.keys(M.days || {}).map(Number).sort((a, b) => a - b)) {
-      const e = M.days[d];
-      for (let i = 0; i < n0(e.r?.[GREGORIAN]); i++) sets.push({ date: `${k}-${pad(d)}`, rem: e.rem || '' });
-      pool += n0(e.o?.[GREGORIAN]);
+    for (const d of Object.keys(M.days || {}).map(Number).sort((x, y) => x - y)) {
+      const e = M.days[d], iso = `${k}-${pad(d)}`;
+      for (let i = 0; i < n0(e.r?.[GREGORIAN]); i++) sets.push({ date: iso, need: GREG_SET, said: 0, rem: e.rem || '' });
+      give(n0(e.o?.[GREGORIAN]), iso);
     }
+    give(n0(M.handed?.counts?.[GREGORIAN]), `${k}-${pad(daysIn(k))}`);
   }
-  pool -= n0(firstOpen);
-  return sets.map(st => { const said = Math.max(0, Math.min(GREG_SET, pool)); pool -= said; return { ...st, said }; }).filter(st => st.said < GREG_SET);
+  return sets;
 }
 function renderGregorians() {
-  const open = openGregorians();
-  if (!open.length || !typeById(GREGORIAN)) return '';
+  if (!typeById(GREGORIAN)) return '';
   const today = new Date(todayISO() + 'T00:00');
-  return `<div class="card"><div class="section-h" style="margin:0 0 6px"><h3>Gregorian Masses in progress</h3></div>${open.map(st => {
-    const start = new Date(st.date + 'T00:00'), due = new Date(start); due.setDate(due.getDate() + GREG_DAYS);
-    const left = Math.round((due - today) / 86400000);
-    const state = left < 0 ? `<span class="pill bad">${-left} days overdue</span>` : left <= 7 ? `<span class="pill warn">${left} days left</span>` : `<span class="pill">${left} days left</span>`;
-    return `<div class="greg"><div><b class="num">${st.said} of ${GREG_SET}</b> said · received ${start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}, finish by ${due.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}${st.rem ? `<div class="note">${esc(st.rem)}</div>` : ''}</div>${state}
-      <div class="bar"><span style="width:${st.said / GREG_SET * 100}%"></span></div></div>`;
+  // Show every unfinished set, and sets finished in the last 30 days so the priest can see them close.
+  const sets = gregorianSets().filter(st => !st.done || (today - new Date(st.done + 'T00:00')) / 86400000 <= 30);
+  if (!sets.length) return '';
+  const fmt = dt => dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  return `<div class="card"><div class="section-h" style="margin:0 0 6px"><h3>Gregorian Masses</h3></div>${sets.map(st => {
+    let head, state;
+    if (st.carried) {
+      head = `<b class="num">${st.said} of ${st.need}</b> said · carried over from your opening balance`;
+      state = st.done ? `<span class="pill">Finished ${fmt(new Date(st.done + 'T00:00'))}</span>` : '';
+    } else {
+      const start = new Date(st.date + 'T00:00'), due = new Date(start); due.setDate(due.getDate() + GREG_DAYS);
+      const left = Math.round((due - today) / 86400000);
+      head = `<b class="num">${st.said} of ${st.need}</b> said · received ${fmt(start)}${st.done ? '' : `, finish by ${fmt(due)}`}`;
+      state = st.done ? `<span class="pill good">Finished ${fmt(new Date(st.done + 'T00:00'))}</span>`
+        : left < 0 ? `<span class="pill bad">${-left} days overdue</span>` : left <= 7 ? `<span class="pill warn">${left} days left</span>` : `<span class="pill">${left} days left</span>`;
+    }
+    return `<div class="greg"><div>${head}${st.rem ? `<div class="note">${esc(st.rem)}</div>` : ''}</div>${state}
+      <div class="bar"><span style="width:${st.said / st.need * 100}%"></span></div></div>`;
   }).join('')}</div>`;
 }
 function openingOf(k) {
