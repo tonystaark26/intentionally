@@ -113,6 +113,7 @@ table { border-collapse: collapse; width: 100% }
 .chip.r { background: color-mix(in srgb, var(--recv) 14%, transparent); color: var(--recv) }
 .chip.o { background: color-mix(in srgb, var(--accent) 13%, transparent); color: var(--accent) }
 .chip.m { background: var(--surface-2); color: var(--muted) }
+.chip.nomass { background: var(--surface-2); color: var(--ink); border: 1px dashed var(--muted) }
 .day .go { color: var(--muted); font-size: 18px }
 
 .book { font-size: 13px }
@@ -329,11 +330,12 @@ function sample() {
     [4, {}, { vicar: 1, bination: 1 }, 0, 'Sunday'],
     [5, { raza: 1 }, { ordinary: 1 }, 2500, ''],
     [6, {}, { raza: 1, bination: 1 }, 0, 'Feast at chapel'],
+    [7, {}, {}, 0, 'Retreat'],
     [8, { ordinary: 3, gregorian: 1 }, { ordinary: 1 }, 7950, 'Gregorian for late Mary Joseph; 3 thanksgiving'],
     [9, { nithya: 1 }, { gregorian: 1, bination: 1 }, 450, 'Foundation Mass, parish register'],
     [10, {}, { gregorian: 1 }, 0, ''],
   ].filter(p => p[0] <= Math.max(today, 3));
-  for (const [d, r, o, amt, rem] of plan) s.mass[k].days[d] = { r, o, amt, rem };
+  for (const [d, r, o, amt, rem] of plan) s.mass[k].days[d] = { r, o, amt, rem, ...(Object.keys(o).length ? {} : { noMass: true }) };
   if (s.mass[k].days[9]) s.mass[k].days[9].fk = 'solemn';
   s.mass[k].handed = { counts: { ordinary: 2 }, rem: 'Receipt no. 214' };
   s.personal.accounts = [
@@ -610,6 +612,7 @@ function renderDays(k) {
       for (const [t, v] of Object.entries(e.r || {})) if (n0(v)) chips += `<span class="chip r">+${v} ${nm(t)}${t === GREGORIAN ? ` (${v * GREG_SET} Masses)` : ''}</span>`;
       const off = splitOffered(e.o);
       if (off.first) chips += `<span class="chip o">✓ ${nm(off.first)}</span>`;
+      else if (e.noMass) chips += `<span class="chip nomass">No Mass</span>`;
       if (off.bin) chips += `<span class="chip o">+${off.bin} Bination</span>`;
       if (n0(e.amt)) chips += `<span class="chip m">${money(e.amt)}</span>`;
     }
@@ -637,7 +640,7 @@ function renderBook(k, open, tot, close) {
   h += `<tr class="foot"><td class="lbl">Opening</td>${R.map(t => cell(open[t.id])).join('')}<td></td><td></td>${O.map(() => '<td></td>').join('')}</tr>`;
   for (let d = 1; d <= n; d++) {
     const e = M.days?.[d] || {};
-    h += `<tr class="dayrow" data-act="edit-day" data-v="${d}"><td>${d}</td>${R.map(t => cell(e.r?.[t.id])).join('')}<td>${n0(e.amt) ? n0(e.amt).toLocaleString('en-IN') : ''}</td><td class="remc">${esc(e.rem || '')}</td>${O.map(t => t.id === BINATION ? cell(splitOffered(e.o).bin) : splitOffered(e.o).first === t.id ? '<td>●</td>' : cell(0)).join('')}</tr>`;
+    h += `<tr class="dayrow" data-act="edit-day" data-v="${d}"><td>${d}</td>${R.map(t => cell(e.r?.[t.id])).join('')}<td>${n0(e.amt) ? n0(e.amt).toLocaleString('en-IN') : ''}</td><td class="remc">${e.noMass && !splitOffered(e.o).first ? '<b>No Mass</b>' + (e.rem ? ' · ' : '') : ''}${esc(e.rem || '')}</td>${O.map(t => t.id === BINATION ? cell(splitOffered(e.o).bin) : splitOffered(e.o).first === t.id ? '<td>●</td>' : cell(0)).join('')}</tr>`;
   }
   h += `<tr class="dayrow" data-act="edit-handed"><td class="lbl" colspan="${R.length + 3}" style="text-align:right">Handed over</td>${O.map(t => cell(tot.h[t.id])).join('')}</tr>`;
   h += `<tr class="foot"><td class="lbl">Total</td>${R.map(t => cell(tot.r[t.id])).join('')}<td>${tot.amt ? tot.amt.toLocaleString('en-IN') : ''}</td><td></td>${O.map(t => cell(n0(tot.o[t.id]) + n0(tot.h[t.id]))).join('')}</tr>`;
@@ -789,8 +792,10 @@ function saveDay() {
   const sh = $('#entry'), k = monthKeyOf(ui.day), d = Number(ui.day.slice(8)), M = monthData(k);
   const entry = { r: readCounts(sh, 'r_'), o: readOffered(sh), amt: n0($('#amt', sh).value), rem: $('#rem', sh).value.trim() };
   if (entry.r[FOUNDATION] || entry.o[FOUNDATION]) entry.fk = sh.dataset.fkind || 'ordinary';
-  if (!sumObj(entry.r) && !sumObj(entry.o) && !entry.amt && !entry.rem) delete M.days[d]; else M.days[d] = entry;
-  ui.month = k; save(); render(); toast('Saved');
+  // A day saved without any Mass ticked is logged as "No Mass".
+  if (!sumObj(entry.o)) entry.noMass = true;
+  M.days[d] = entry;
+  ui.month = k; save(); render(); toast(entry.noMass ? 'Saved as No Mass' : 'Saved');
 }
 
 function handedEditor() {
