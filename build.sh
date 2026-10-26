@@ -19,7 +19,7 @@ mkdir -p $OUT
   cat src/app.html
   echo '</body></html>'
 } > $OUT/index.html
-cp src/manifest.webmanifest src/sw.js src/icon.svg $OUT/
+cp src/manifest.webmanifest src/sw.js src/icon.svg src/privacy.html $OUT/
 [ -f src/icon-192.png ] && cp src/icon-*.png $OUT/ || true
 VER=$(md5sum $OUT/index.html | cut -c1-8)
 sed -i "s/__VERSION__/$VER/" $OUT/sw.js
