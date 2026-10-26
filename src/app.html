@@ -275,6 +275,7 @@ nav.tabs button { position: relative }
 .welcome .choices button.plain { border: 0; font-weight: 500; text-decoration: underline; text-underline-offset: 3px; color: var(--band-gold) }
 .welcome .choices button[disabled] { opacity: .55 }
 .welcome .gl { display: inline-flex; align-items: center; justify-content: center; gap: 10px }
+.welcome .wel { display: block; margin-top: 10px; font-family: var(--f-display); font-size: 24px; color: var(--band-gold); font-weight: 600 }
 .welcome .fine { font-size: 12.5px; margin-top: 18px }
 code.blob { display: block; max-height: 140px; overflow: auto; font-size: 11px; background: var(--surface-2); padding: 8px; border-radius: 8px; word-break: break-all; margin-top: 8px }
 </style>
@@ -1256,7 +1257,7 @@ function renderWelcome() {
   $('#welcome').innerHTML = `<div class="welcome" role="dialog" aria-modal="true" aria-labelledby="wtitle"><div class="in">
     <img class="emblem" src="${EMBLEM}" alt="Mar Thoma Sleeva">
     <h1 id="wtitle">Intentionally</h1><div class="sub">Mass book · Personal accounts</div>
-    <p>Keep your Mass intentions and your own accounts on this phone. It works without internet.</p>
+    <p>This will help you intentionally offer all your intentions. Every intention is valuable and we won't ever miss any request.<br><b class="wel">Welcome.</b></p>
     <div class="field"><label for="wname">Your name (optional)</label><input id="wname" placeholder="Fr. …" autocomplete="name" value="${esc(S.settings.priestName || '')}"></div>
     <div class="choices">
       ${g ? `<button class="gold" data-act="w-google"><span class="gl"><svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.9 6.1C12.5 13.6 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 2.9-2.2 5.4-4.7 7.1l7.6 5.9c4.4-4.1 6.9-10.1 6.9-17.5z"/><path fill="#FBBC05" d="M10.6 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.9c-2.1 1.4-4.9 2.3-8.3 2.3-6.2 0-11.5-4.2-13.4-9.9l-7.9 6.1C6.6 42.6 14.6 48 24 48z"/></svg>Sign in with Google for backup</span></button>` : ''}
