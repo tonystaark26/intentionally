@@ -208,6 +208,8 @@ nav.tabs button[aria-current="page"] svg { background: var(--secondary) }
 .drop .sum { grid-row: 2; font-size: 13px; color: var(--muted) }
 .drop .chev { grid-row: 1 / 3; grid-column: 2; width: 22px; height: 22px; color: var(--primary); transition: transform .15s }
 .drop[open] .chev { transform: rotate(180deg) }
+.acctdrop { margin-top: 4px; background: var(--surface); box-shadow: var(--shadow) }
+.acctdrop .drop-body { background: transparent }
 .drop .drop-body { padding: 0 16px 14px; background: var(--surface); margin: 0 4px 4px; border-radius: 12px; padding-top: 6px }
 .offered { margin-top: 16px }
 .offered label[for=firstsel] { font-weight: 700; color: var(--clay); font-size: 16px }
@@ -932,16 +934,8 @@ function renderPersonal() {
   const inc = txns.filter(t => t.kind === 'in').reduce((a, t) => a + n0(t.amt), 0);
   const exp = txns.filter(t => t.kind === 'out').reduce((a, t) => a + n0(t.amt), 0);
 
-  let h = `<div class="stack"><div class="card hero">
-      <div><div class="label">Total money</div><div class="big num">${money(total)}</div></div>
-      <div class="side num"><span>In banks <b>${money(bank)}</b></span><span>Cash <b>${money(total - bank)}</b></span></div></div>`;
-  h += `<div class="section-h"><h3>Accounts</h3><button class="btn small" data-act="add-acct">Add account</button></div>
-    <div class="card" style="padding:4px 14px"><div class="accts">${accts.map(a => {
-      const b = acctBalance(a.id);
-      return `<button class="acct" data-act="edit-acct" data-v="${a.id}"><span><span>${esc(a.name)}</span><br><span class="k">${a.kind === 'bank' ? 'Bank account' : 'Cash'}</span></span><span class="v num ${b < 0 ? 'neg' : ''}">${money(b)}</span></button>`;
-    }).join('') || '<div class="emptystate">Add your bank accounts and cash.</div>'}</div></div>`;
-
-  h += `<div class="monthbar" style="margin:6px 0 0">
+  // The month's income and spending come first; accounts sit lower down in a section that opens on tap.
+  let h = `<div class="stack"><div class="monthbar" style="margin:0">
     <button class="iconbtn" data-act="pmonth" data-v="-1" aria-label="Previous month">‹</button>
     <h2 style="font-size:19px">${esc(monthName(k))}</h2>
     <button class="iconbtn" data-act="pmonth" data-v="1" aria-label="Next month">›</button></div>`;
@@ -962,7 +956,14 @@ function renderPersonal() {
     const sign = t.kind === 'in' ? '+' : t.kind === 'out' ? '−' : '';
     h += `<button class="txn" data-act="edit-txn" data-v="${t.id}"><span class="t">${title}</span><span class="a num ${cls}">${sign}${money(t.amt)}</span><span class="s">${sub}</span></button>`;
   }
-  h += `</div></div>`;
+  h += `</div>`;
+  h += `<details class="drop acctdrop"><summary><span class="dl">Accounts</span><span class="sum">Total ${money(total)} · Banks ${money(bank)} · Cash ${money(total - bank)}</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+    <div class="drop-body"><div class="accts">${accts.map(a => {
+      const b = acctBalance(a.id);
+      return `<button class="acct" data-act="edit-acct" data-v="${a.id}"><span><span>${esc(a.name)}</span><br><span class="k">${a.kind === 'bank' ? 'Bank account' : 'Cash'}</span></span><span class="v num ${b < 0 ? 'neg' : ''}">${money(b)}</span></button>`;
+    }).join('') || '<div class="emptystate">Add your bank accounts and cash.</div>'}</div>
+    <button class="btn small" style="margin-top:10px" data-act="add-acct">Add account</button></div></details>`;
+  h += `</div>`;
   return h;
 }
 
@@ -1153,18 +1154,20 @@ function openingEditor(start) {
     <div class="actions">${manual ? '<button class="btn" data-act="opening-auto">Carry forward automatically</button>' : ''}<span class="spacer"></span><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="opening-save">Save</button></div>`);
 }
 
+// Categories: the built-in list plus any the priest added himself (stored per kind in S.personal.cats).
+const catList = kind => [...(CATS[kind] || []), ...((S.personal.cats || {})[kind] || [])];
 function txnEditor(id) {
   const t = id ? S.personal.txns.find(x => x.id === id) : { kind: 'out', date: todayISO(), acct: S.personal.accounts[0]?.id, amt: '', cat: '', note: '' };
   if (!S.personal.accounts.length) { toast('Add an account first'); return acctEditor(); }
   const opts = (sel) => S.personal.accounts.map(a => `<option value="${a.id}" ${a.id === sel ? 'selected' : ''}>${esc(a.name)}</option>`).join('');
-  const catOpts = (kind, sel) => (CATS[kind] || []).map(c => `<option ${c === sel ? 'selected' : ''}>${esc(c)}</option>`).join('');
+  const catOpts = (kind, sel) => { const l = catList(kind); if (sel && !l.includes(sel)) l.push(sel); return l.map(c => `<option ${c === sel ? 'selected' : ''}>${esc(c)}</option>`).join('') + '<option value="__new">+ Add new category…</option>'; };
   openSheet(`<h3>${id ? 'Edit transaction' : 'New transaction'}</h3>
     <div class="seg" role="group" aria-label="Type" style="margin-top:8px">${[['out', 'Expense'], ['in', 'Income'], ['xfer', 'Transfer']].map(([v, l]) => `<button type="button" data-kind="${v}" aria-pressed="${t.kind === v}">${l}</button>`).join('')}</div>
     <div class="two"><div class="field"><label for="tamt">Amount (₹)</label><input id="tamt" type="number" inputmode="decimal" min="0" value="${t.amt}"></div>
       <div class="field"><label for="tdate">Date</label><input id="tdate" type="date" value="${t.date}"></div></div>
     <div class="field"><label for="tacct" id="tacctl">${t.kind === 'xfer' ? 'From account' : 'Account'}</label><select id="tacct">${opts(t.acct)}</select></div>
     <div class="field" id="tto-f" ${t.kind === 'xfer' ? '' : 'hidden'}><label for="tto">To account</label><select id="tto">${opts(t.to || S.personal.accounts.find(a => a.id !== t.acct)?.id)}</select></div>
-    <div class="field" id="tcat-f" ${t.kind === 'xfer' ? 'hidden' : ''}><label for="tcat">Category</label><select id="tcat">${catOpts(t.kind === 'xfer' ? 'out' : t.kind, t.cat)}</select></div>
+    <div class="field" id="tcat-f" ${t.kind === 'xfer' ? 'hidden' : ''}><label for="tcat">Category</label><select id="tcat">${catOpts(t.kind === 'xfer' ? 'out' : t.kind, t.cat)}</select><input id="tnewcat" style="margin-top:8px" placeholder="New category, e.g. Examination fees" hidden></div>
     <div class="field"><label for="tnote">Note</label><input id="tnote" value="${esc(t.note || '')}" placeholder="Optional"></div>
     <div class="actions">${id ? `<button class="btn danger" data-act="txn-del" data-v="${id}">Delete</button>` : ''}<span class="spacer"></span><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="txn-save" data-v="${id || ''}">Save</button></div>`,
   sh => {
@@ -1174,8 +1177,9 @@ function txnEditor(id) {
       sh.querySelectorAll('[data-kind]').forEach(x => x.setAttribute('aria-pressed', x === b));
       $('#tto-f', sh).hidden = kind !== 'xfer'; $('#tcat-f', sh).hidden = kind === 'xfer';
       $('#tacctl', sh).textContent = kind === 'xfer' ? 'From account' : 'Account';
-      if (kind !== 'xfer') $('#tcat', sh).innerHTML = catOpts(kind, '');
+      if (kind !== 'xfer') { $('#tcat', sh).innerHTML = catOpts(kind, ''); $('#tnewcat', sh).hidden = true; }
     }));
+    $('#tcat', sh).addEventListener('change', e => { const nw = e.target.value === '__new', inp = $('#tnewcat', sh); inp.hidden = !nw; if (nw) inp.focus(); });
   });
 }
 function saveTxn(id) {
@@ -1184,7 +1188,15 @@ function saveTxn(id) {
   if (amt <= 0) return toast('Enter an amount above zero');
   const t = { id: id || uid(), kind, amt, date: $('#tdate', sh).value || todayISO(), acct: $('#tacct', sh).value, note: $('#tnote', sh).value.trim() };
   if (kind === 'xfer') { t.to = $('#tto', sh).value; if (t.to === t.acct) return toast('Choose two different accounts'); }
-  else t.cat = $('#tcat', sh).value;
+  else {
+    t.cat = $('#tcat', sh).value;
+    if (t.cat === '__new') {
+      t.cat = $('#tnewcat', sh).value.trim();
+      if (!t.cat) return toast('Type a name for the new category');
+      const list = ((S.personal.cats ||= {})[kind] ||= []);
+      if (!catList(kind).some(c => c.toLowerCase() === t.cat.toLowerCase())) list.push(t.cat);
+    }
+  }
   const i = S.personal.txns.findIndex(x => x.id === t.id);
   if (i >= 0) S.personal.txns[i] = t; else S.personal.txns.push(t);
   ui.pMonth = monthKeyOf(t.date);
