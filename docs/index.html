@@ -687,8 +687,8 @@ function renderEntry(pending) {
         <div class="field" style="margin-top:0"><label for="firstsel">Mass offered ${ml(ML.offered)}</label>
           <select id="firstsel" name="first" class="bigsel">${O.map(t => `<option value="${t.id}" ${sel === t.id ? 'selected' : ''}>${esc(t.en)}</option>`).join('')}<option value="" ${sel ? '' : 'selected'}>No Mass offered</option></select>
           ${g && (gRun || off.first === GREGORIAN) ? `<span class="note" id="gnote">Gregorian: ${esc(g.label)}${g.rem ? ` · ${esc(g.rem)}` : ''}</span>` : ''}
-          <span class="note">The first Mass you offered today. Every Mass after it is a bination. New days start with <b>${esc(typeById(defaultFirst())?.en || 'No Mass')}</b> · <button type="button" class="linkbtn inline" data-act="set-default">make this my default</button></span></div>
-        ${typeById(BINATION) ? `<div class="stepper-row" style="margin-top:8px"><span class="nm">${esc(typeById(BINATION).en)} ${ml(typeById(BINATION).ml)}<span class="note">Masses after the first</span></span>${stepper('o_' + BINATION, off.bin)}</div>` : ''}
+          <button type="button" class="linkbtn" style="margin:2px 0 0" data-act="set-default">Make this my default</button></div>
+        ${typeById(BINATION) ? `<div class="stepper-row" style="margin-top:8px"><span class="nm">${esc(typeById(BINATION).en)} ${ml(typeById(BINATION).ml)}</span>${stepper('o_' + BINATION, off.bin)}</div>` : ''}
       </section>
     </div>
     <div class="field"><label for="rem">Notes</label><textarea id="rem" placeholder="Name of the person, intention, place">${esc(remVal)}</textarea></div>
