@@ -495,7 +495,9 @@ function gregFor(iso) {
   if (!st) st = sets.find(x => (x.carried || x.date <= iso) && (!x.done || x.done > iso));
   if (!st) return null;
   const before = st.days.filter(x => x < iso).length;
-  return { set: st, rem: st.rem, day: Math.min(st.need, before + 1), need: st.need };
+  const day = Math.min(st.need, before + 1);
+  // A set carried in from the opening balance has no start date, so it is counted as Masses left rather than day N of 30.
+  return { set: st, rem: st.rem, day, need: st.need, label: st.carried ? `${st.need - day + 1} Gregorian Masses left` : `Day ${day} of ${st.need}` };
 }
 function renderGregorians() {
   if (!typeById(GREGORIAN)) return '';
@@ -568,7 +570,7 @@ function render() {
   let tName = tFirst ? (typeById(tFirst)?.en || tFirst) + (tFirst === FOUNDATION && te.fk ? ` (${typeById(te.fk)?.en.replace(/ Mass$/, '') || te.fk})` : '') : te?.noMass ? 'No Mass' : '';
   let tRem = te?.rem || '';
   // During a Gregorian set, today's intention is the set's intention, even before today is marked.
-  if (tg) { tName = `Gregorian · day ${tg.day} of ${tg.need}`; tRem = tg.rem || tRem; }
+  if (tg) { tName = tg.set.carried ? `Gregorian · ${tg.need - tg.day + 1} left` : `Gregorian · day ${tg.day} of ${tg.need}`; tRem = tg.rem || tRem; }
   $('#band').innerHTML = `<div class="in">
     <div class="brand">Intentionally<small>Mass book · Personal accounts</small></div>
     ${ui.tab === 'mass' ? `<button class="hold" data-act="day-today" aria-label="Go to today's entry"><span>Today's intention</span><b>${tName ? esc(tName) : 'Not marked yet'}</b>${tRem ? `<em>${esc(tRem)}</em>` : ''}</button>` : ''}</div>`;
@@ -601,6 +603,8 @@ function renderMass() {
 
   if (driveDue()) h += `<div class="banner"><span>Your last Google Drive backup was ${S.meta.lastDriveBackup ? new Date(S.meta.lastDriveBackup).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'never'}.</span><button class="btn small" data-act="g-backup">Back up now</button></div>`;
   if (showInstall() && !S.meta.installHidden) h += `<div class="banner"><span>Put Intentionally on your home screen so it opens like an app, even without internet.</span><span class="row" style="gap:6px"><button class="btn small" data-act="install-hide">Later</button><button class="btn small primary" data-act="install">Install</button></span></div>`;
+  if (!S.meta.example && !S.meta.startDone && !Object.values(S.mass).some(M => M.opening?.manual))
+    h += `<div class="card"><h3 style="margin:0 0 4px;font-size:17px">Already holding intentions?</h3><p class="note" style="margin:0 0 12px">If you have intentions with you from before, enter how many of each kind and start from there. No need to enter past months.</p><div class="row"><button class="btn primary" data-act="start-balance">Enter my balance</button><button class="btn" data-act="start-none">I have none</button></div></div>`;
   h += renderEntry(pending);
   h += renderGregorians();
 
@@ -671,7 +675,7 @@ function renderEntry(pending) {
         <p class="note" style="margin:0 0 4px">Tick the first Mass you offered. Every Mass after it is a bination.</p>
         <div class="defrow"><span class="note">New days start with <b>${esc(typeById(defaultFirst())?.en || 'No Mass')}</b>.</span><button type="button" class="linkbtn" data-act="set-default">Make the ticked one my default</button></div>
         <div class="firstlist">
-          ${O.map(t => `<label class="first"><input type="radio" name="first" value="${t.id}" ${sel === t.id ? 'checked' : ''}><span class="dot" aria-hidden="true"></span><span class="nm">${esc(t.en)} ${ml(t.ml)}${t.id === GREGORIAN ? `<span class="note">${g && (gRun || off.first === GREGORIAN) ? `Day ${g.day} of ${g.need}${g.rem ? ` · ${esc(g.rem)}` : ''}` : 'One of the 30 days'}</span>` : ''}</span></label>`).join('')}
+          ${O.map(t => `<label class="first"><input type="radio" name="first" value="${t.id}" ${sel === t.id ? 'checked' : ''}><span class="dot" aria-hidden="true"></span><span class="nm">${esc(t.en)} ${ml(t.ml)}${t.id === GREGORIAN ? `<span class="note">${g && (gRun || off.first === GREGORIAN) ? `${g.label}${g.rem ? ` · ${esc(g.rem)}` : ''}` : 'One of the 30 days'}</span>` : ''}</span></label>`).join('')}
           <label class="first"><input type="radio" name="first" value="" ${sel ? '' : 'checked'}><span class="dot" aria-hidden="true"></span><span class="nm">No Mass offered</span></label>
         </div>
         ${typeById(BINATION) ? `<div class="stepper-row" style="margin-top:6px"><span class="nm">${esc(typeById(BINATION).en)} ${ml(typeById(BINATION).ml)}<span class="note">Masses after the first.</span></span>${stepper('o_' + BINATION, off.bin)}</div>` : ''}
@@ -1124,10 +1128,12 @@ function handedEditor() {
     <div class="field"><label for="hrem">Note</label><input id="hrem" value="${esc(hd.rem || '')}" placeholder="Date, receipt number"></div>
     <div class="actions"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="handed-save">Save</button></div>`);
 }
-function openingEditor() {
+function openingEditor(start) {
   const k = ui.month, M = monthData(k), cur = openingOf(k), manual = !!M.opening?.manual;
-  openSheet(`<h3>Opening balance</h3><div class="sub">${esc(monthName(k))}. ${manual ? 'You set this by hand.' : 'Carried forward from earlier months.'} Set it by hand for your first month, using the balance from your paper book.</div>
-    <div class="group r">${recvTypes().map(t => `<div class="stepper-row"><span class="nm">${esc(t.en)} ${ml(t.ml)}</span>${stepper('p_' + t.id, cur[t.id])}</div>`).join('')}</div>
+  openSheet(`<h3>${start ? 'Intentions you already hold' : 'Opening balance'}</h3><div class="sub">${start
+      ? `Enter how many intentions you have with you now, for each kind. For example, if you hold 50 Ordinary Mass intentions, put 50 next to Ordinary Mass. Your Mass book starts from ${esc(monthName(k))} with this balance.`
+      : `${esc(monthName(k))}. ${manual ? 'You set this by hand.' : 'Carried forward from earlier months.'} Set it by hand for your first month, using the balance from your paper book.`}</div>
+    <div class="group r">${recvTypes().map(t => `<div class="stepper-row"><span class="nm">${esc(t.en)} ${ml(t.ml)}${t.id === GREGORIAN ? '<span class="note">Gregorian Masses still to offer</span>' : ''}</span>${stepper('p_' + t.id, cur[t.id])}</div>`).join('')}</div>
     <div class="actions">${manual ? '<button class="btn" data-act="opening-auto">Carry forward automatically</button>' : ''}<span class="spacer"></span><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="opening-save">Save</button></div>`);
 }
 
@@ -1393,7 +1399,9 @@ document.addEventListener('click', e => {
     case 'edit-handed': handedEditor(); break;
     case 'handed-save': { const sh = $('.sheet'), M = monthData(ui.month); M.handed = { counts: readCounts(sh, 'h_'), rem: $('#hrem', sh).value.trim() }; save(); closeSheet(); render(); toast('Saved'); break; }
     case 'edit-opening': openingEditor(); break;
-    case 'opening-save': { const M = monthData(ui.month); M.opening = { manual: true, counts: readCounts($('.sheet'), 'p_') }; save(); closeSheet(); render(); toast('Opening balance set'); break; }
+    case 'opening-save': { const M = monthData(ui.month); M.opening = { manual: true, counts: readCounts($('.sheet'), 'p_') }; S.meta.startDone = true; save(); closeSheet(); render(); toast('Opening balance set'); break; }
+    case 'start-balance': ui.month = monthKeyOf(todayISO()); openingEditor(true); break;
+    case 'start-none': S.meta.startDone = true; save(); render(); toast('You can set it later under Month-end account > Opening balance.'); break;
     case 'opening-auto': { delete monthData(ui.month).opening; save(); closeSheet(); render(); toast('Opening balance now carries forward'); break; }
     case 'add-txn': txnEditor(); break;
     case 'fab-mass': ui.day = todayISO(); ui.month = monthKeyOf(ui.day); render(); scrollTo({ top: 0, behavior: 'smooth' }); break;
