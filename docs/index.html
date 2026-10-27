@@ -142,7 +142,7 @@ table { border-collapse: collapse; width: 100% }
 .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center }
 .row.between { justify-content: space-between }
 .row .spacer { flex: 1 }
-.exp-prev { margin: 12px 0; min-height: 120px; display: grid; place-items: center; background: var(--surface-2); border-radius: 12px; overflow: hidden }
+.exp-prev { margin: 12px 0; min-height: 120px; display: grid; place-items: center; background: var(--surface-2); border-radius: 12px; overflow: hidden; gap: 8px }
 .exp-prev img { display: block; width: 100%; height: auto }
 
 .fab { position: fixed; right: max(20px, calc(env(safe-area-inset-right, 0px) + 20px)); bottom: calc(86px + env(safe-area-inset-bottom, 0px)); width: 60px; height: 60px; border-radius: 50%; border: 0; background: var(--primary); color: var(--primary-ink); display: grid; place-items: center; box-shadow: 0 6px 18px rgba(55,107,96,.35); z-index: 31 }
@@ -555,10 +555,11 @@ function isEmptyMonth(k) {
 }
 
 /* ---------- Personal math ---------- */
-function acctBalance(id) {
+function acctBalance(id, upto) {
   const a = S.personal.accounts.find(x => x.id === id);
   let b = n0(a?.opening);
   for (const t of S.personal.txns) {
+    if (upto && t.date > upto) continue;
     if (t.kind === 'in' && t.acct === id) b += n0(t.amt);
     if (t.kind === 'out' && t.acct === id) b -= n0(t.amt);
     if (t.kind === 'xfer') { if (t.acct === id) b -= n0(t.amt); if (t.to === id) b += n0(t.amt); }
@@ -880,49 +881,161 @@ async function drawMonthPage(k) {
   return cv;
 }
 // A one-page PDF holding a single JPEG, written by hand (no library needed).
-function jpegToPdf(jpeg, pw, ph) {
+function jpegToPdf(jpegs, pw, ph) {
+  if (!Array.isArray(jpegs)) jpegs = [jpegs];
   const enc = new TextEncoder(), parts = [], offs = [];
   let len = 0;
   const put = x => { const b = typeof x === 'string' ? enc.encode(x) : x; parts.push(b); len += b.length; };
   const obj = (i, body, stream) => { offs[i] = len; put(`${i} 0 obj\n${body}\n`); if (stream) { put('stream\n'); put(stream); put('\nendstream\n'); } put('endobj\n'); };
-  const draw = `q ${pw} 0 0 ${ph} 0 0 cm /Im0 Do Q`;
+  const draw = `q ${pw} 0 0 ${ph} 0 0 cm /Im0 Do Q`, n = jpegs.length;
+  // Objects: 1 catalog, 2 page tree, then three per page (page, image, contents).
   put('%PDF-1.4\n'); put(new Uint8Array([37, 226, 227, 207, 211, 10]));
   obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
-  obj(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
-  obj(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pw} ${ph}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>`);
-  obj(4, `<< /Type /XObject /Subtype /Image /Width ${jpeg.w} /Height ${jpeg.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.bytes.length} >>`, jpeg.bytes);
-  obj(5, `<< /Length ${draw.length} >>`, enc.encode(draw));
-  const xref = len;
-  put(`xref\n0 6\n0000000000 65535 f \n${offs.slice(1).map(o => String(o).padStart(10, '0') + ' 00000 n \n').join('')}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+  obj(2, `<< /Type /Pages /Kids [${jpegs.map((_, i) => `${3 + i * 3} 0 R`).join(' ')}] /Count ${n} >>`);
+  jpegs.forEach((jpeg, i) => {
+    const o = 3 + i * 3;
+    obj(o, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pw} ${ph}] /Resources << /XObject << /Im0 ${o + 1} 0 R >> >> /Contents ${o + 2} 0 R >>`);
+    obj(o + 1, `<< /Type /XObject /Subtype /Image /Width ${jpeg.w} /Height ${jpeg.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.bytes.length} >>`, jpeg.bytes);
+    obj(o + 2, `<< /Length ${draw.length} >>`, enc.encode(draw));
+  });
+  const xref = len, size = 3 + n * 3;
+  put(`xref\n0 ${size}\n0000000000 65535 f \n${offs.slice(1).map(o => String(o).padStart(10, '0') + ' 00000 n \n').join('')}trailer\n<< /Size ${size} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
   return new Blob(parts, { type: 'application/pdf' });
 }
 const EXP = {};
-async function exportMonthSheet() {
-  const k = ui.month, base = `Mass-account-${k}`;
-  openSheet(`<h2>Export ${esc(monthName(k))}</h2><p class="note">The month's page from your Mass book, ready to send or print.</p>
+// kind 'mass' is the Mass book page (A4 landscape); 'personal' is the personal account statement (A4 portrait, one or more pages).
+async function exportMonthSheet(kind = 'mass') {
+  const personal = kind === 'personal', k = personal ? ui.pMonth : ui.month;
+  const base = `${personal ? 'Personal-account' : 'Mass-account'}-${k}`;
+  openSheet(`<h2>Export ${esc(monthName(k))}</h2><p class="note">${personal ? "The month's income, spending and account balances, ready to send or print." : "The month's page from your Mass book, ready to send or print."}</p>
     <div class="exp-prev"><span class="note">Preparing…</span></div>
     <div class="actions"><button class="btn" data-act="close">Close</button><span class="spacer"></span>
       <button class="btn" data-act="exp-share" data-v="png" disabled>Picture</button><button class="btn primary" data-act="exp-share" data-v="pdf" disabled>PDF</button></div>`);
-  const cv = await drawMonthPage(k);
-  const jpgBlob = await new Promise(r => cv.toBlob(r, 'image/jpeg', .9));
-  const bytes = new Uint8Array(await jpgBlob.arrayBuffer());
-  EXP.pdf = new File([jpegToPdf({ bytes, w: cv.width, h: cv.height }, 842, 595)], base + '.pdf', { type: 'application/pdf' });
-  EXP.png = new File([jpgBlob], base + '.jpg', { type: 'image/jpeg' });
+  const pages = personal ? await drawPersonalPages(k) : [await drawMonthPage(k)];
+  const blobs = await Promise.all(pages.map(cv => new Promise(r => cv.toBlob(r, 'image/jpeg', .9))));
+  const jpegs = await Promise.all(blobs.map(async (bl, i) => ({ bytes: new Uint8Array(await bl.arrayBuffer()), w: pages[i].width, h: pages[i].height })));
+  EXP.pdf = new File([personal ? jpegToPdf(jpegs, 595, 842) : jpegToPdf(jpegs, 842, 595)], base + '.pdf', { type: 'application/pdf' });
+  EXP.png = blobs.map((bl, i) => new File([bl], base + (blobs.length > 1 ? `-page${i + 1}` : '') + '.jpg', { type: 'image/jpeg' }));
   const sh = $('.sheet'); if (!sh) return;
-  EXP.url && URL.revokeObjectURL(EXP.url); EXP.url = URL.createObjectURL(jpgBlob);
-  $('.exp-prev', sh).innerHTML = `<img src="${EXP.url}" alt="Mass account page for ${esc(monthName(k))}">`;
+  (EXP.urls || []).forEach(u => URL.revokeObjectURL(u)); EXP.urls = blobs.map(bl => URL.createObjectURL(bl));
+  $('.exp-prev', sh).innerHTML = EXP.urls.map((u, i) => `<img src="${u}" alt="${personal ? 'Personal account' : 'Mass account'} for ${esc(monthName(k))}${EXP.urls.length > 1 ? `, page ${i + 1}` : ''}">`).join('');
   sh.querySelectorAll('[data-act="exp-share"]').forEach(b => b.disabled = false);
 }
 async function shareExport(kind) {
-  const f = EXP[kind]; if (!f) return;
+  const files = [].concat(EXP[kind] || []); if (!files.length) return;
   try {
-    if (navigator.canShare?.({ files: [f] })) { await navigator.share({ files: [f], title: f.name }); return; }
+    if (navigator.canShare?.({ files })) { await navigator.share({ files, title: files[0].name }); return; }
   } catch (e) { if (e.name === 'AbortError') return; }
   try {
-    const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = f.name;
-    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
-    toast(`Saved ${f.name}`);
+    for (const f of files) {
+      const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = f.name;
+      document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+    }
+    toast(`Saved ${files.length > 1 ? files.length + ' pictures' : files[0].name}`);
   } catch (e) { toast('Could not save here. Press and hold the picture to save it.'); }
+}
+
+// Personal account statement: totals, spending and income by category, account balances at month end, then every transaction.
+async function drawPersonalPages(k) {
+  const W = 1654, H = 2339, P = 100; // A4 portrait at 200 dpi
+  try { await Promise.all(['400 30px "Plus Jakarta Sans"', '600 30px "Plus Jakarta Sans"', '700 54px "Plus Jakarta Sans"'].map(f => document.fonts.load(f))); } catch (_) {}
+  const SAGE = '#376B60', PEACH = '#EEDBC8', INK = '#252B2A', SOFT = '#6E7672', LINE = '#dcd8cf', CLAY = '#8A5A3B', TINT = '#F0EEE8';
+  const sans = (w, sz) => `${w} ${sz}px "Plus Jakarta Sans", system-ui, sans-serif`;
+  const rs = v => '₹' + Math.round(n0(v)).toLocaleString('en-IN');
+  const [yr, mo] = k.split('-').map(Number), end = `${k}-${String(daysIn(k)).padStart(2, '0')}`;
+  const txns = S.personal.txns.filter(t => monthKeyOf(t.date) === k).sort((a, b) => a.date.localeCompare(b.date));
+  const inc = txns.filter(t => t.kind === 'in').reduce((a, t) => a + n0(t.amt), 0);
+  const exp = txns.filter(t => t.kind === 'out').reduce((a, t) => a + n0(t.amt), 0);
+  const byCat = kind => { const m = {}; for (const t of txns) if (t.kind === kind) { const c2 = t.cat || (kind === 'in' ? 'Other income' : 'Other'); m[c2] = (m[c2] || 0) + n0(t.amt); } return Object.entries(m).sort((a, b) => b[1] - a[1]); };
+  const outCats = byCat('out'), inCats = byCat('in');
+  const accts = S.personal.accounts.map(a => ({ name: a.name, kind: a.kind, b: acctBalance(a.id, end) }));
+  const pages = [];
+  let c, y;
+  const txt = (s, x, yy, font, color = INK, align = 'left') => { c.font = font; c.fillStyle = color; c.textAlign = align; c.fillText(s, x, yy); };
+  const fit = (s, w, font) => { c.font = font; if (c.measureText(s).width <= w) return s; while (s.length > 1 && c.measureText(s + '…').width > w) s = s.slice(0, -1); return s + '…'; };
+  const rule = (yy, color = LINE, w = 1.5) => { c.strokeStyle = color; c.lineWidth = w; c.beginPath(); c.moveTo(P, yy); c.lineTo(W - P, yy); c.stroke(); };
+  const newPage = () => {
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H; pages.push(cv);
+    c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, W, H);
+    c.fillStyle = SAGE; c.fillRect(0, 0, W, 12); c.fillStyle = PEACH; c.fillRect(0, 12, W, 4);
+    txt('Personal Account', P, 112, sans(700, 54), SAGE);
+    txt(monthName(k), W - P, 112, sans(700, 46), SAGE, 'right');
+    if (S.settings.priestName) txt(S.settings.priestName, P, 160, sans(500, 30), SOFT);
+    y = 220;
+  };
+  const heading = s => { txt(s, P, y, sans(700, 32), SAGE); y += 22; rule(y, SAGE, 2.5); y += 12; };
+  newPage();
+
+  // Totals
+  const net = inc - exp, bw = (W - 2 * P - 40) / 3;
+  [['Income', rs(inc), SAGE], ['Spent', rs(exp), CLAY], [net >= 0 ? 'Saved' : 'Spent more than income', (net < 0 ? '−' : '') + rs(Math.abs(net)), net >= 0 ? SAGE : CLAY]].forEach(([l, v, col], i) => {
+    const x = P + i * (bw + 20);
+    c.fillStyle = TINT; c.beginPath(); c.roundRect ? c.roundRect(x, y, bw, 150, 22) : c.rect(x, y, bw, 150); c.fill();
+    txt(l, x + 30, y + 52, sans(500, 26), SOFT); txt(v, x + 30, y + 118, sans(700, 50), col);
+  });
+  y += 210;
+
+  // Spending and income by category, side by side
+  const colW = (W - 2 * P - 60) / 2, top = y;
+  const catBlock = (title, list, total, x, color) => {
+    let yy = top; txt(title, x, yy, sans(700, 32), SAGE); yy += 22;
+    c.strokeStyle = SAGE; c.lineWidth = 2.5; c.beginPath(); c.moveTo(x, yy); c.lineTo(x + colW, yy); c.stroke(); yy += 50;
+    if (!list.length) { txt('None this month', x, yy, sans(400, 26), SOFT); return yy + 20; }
+    for (const [name, v] of list) {
+      txt(fit(name, colW - 200, sans(500, 26)), x, yy, sans(500, 26)); txt(rs(v), x + colW, yy, sans(600, 26), INK, 'right');
+      c.fillStyle = TINT; c.fillRect(x, yy + 14, colW, 10);
+      c.fillStyle = color; c.fillRect(x, yy + 14, Math.max(4, colW * v / (total || 1)), 10);
+      yy += 66;
+    }
+    return yy;
+  };
+  y = Math.max(catBlock('Spending by category', outCats, exp, P, CLAY), catBlock('Income by category', inCats, inc, P + colW + 60, SAGE)) + 30;
+
+  // Accounts at month end
+  heading(`Account balances on ${new Date(end + 'T00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`);
+  y += 36;
+  for (const a of accts) {
+    txt(a.name, P, y, sans(500, 27)); txt(a.kind === 'bank' ? 'Bank account' : 'Cash', P + 640, y, sans(400, 25), SOFT);
+    txt((a.b < 0 ? '−' : '') + rs(Math.abs(a.b)), W - P, y, sans(600, 27), a.b < 0 ? CLAY : INK, 'right');
+    y += 18; rule(y); y += 40;
+  }
+  const tot = accts.reduce((s2, a) => s2 + a.b, 0);
+  txt('Total', P, y, sans(700, 27), SAGE); txt((tot < 0 ? '−' : '') + rs(Math.abs(tot)), W - P, y, sans(700, 27), SAGE, 'right');
+  y += 80;
+
+  // Transactions
+  const cx = { date: P, det: P + 170, acct: P + 820, inc: W - P - 230, out: W - P }, rowH = 60;
+  const tableHead = () => {
+    heading(pages.length > 1 && y < 300 ? 'Transactions (continued)' : 'Transactions');
+    y += 30;
+    [['Date', cx.date, 'left'], ['Details', cx.det, 'left'], ['Account', cx.acct, 'left'], ['Income', cx.inc, 'right'], ['Spent', cx.out, 'right']].forEach(([l, x, al]) => txt(l, x, y, sans(600, 23), SOFT, al));
+    y += 18; rule(y); y += 42;
+  };
+  tableHead();
+  if (!txns.length) txt('No transactions this month.', P, y, sans(400, 26), SOFT);
+  for (const t of txns) {
+    if (y > H - 160) { newPage(); tableHead(); }
+    const d = new Date(t.date + 'T00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    const det = t.kind === 'xfer' ? `Transfer ${rs(t.amt)} to ${acctName(t.to)}` : (t.cat || (t.kind === 'in' ? 'Income' : 'Expense'));
+    txt(d, cx.date, y, sans(500, 25));
+    txt(fit(det + (t.note ? ' · ' + t.note : ''), cx.acct - cx.det - 24, sans(400, 25)), cx.det, y, sans(400, 25));
+    txt(fit(acctName(t.acct), cx.inc - cx.acct - 160, sans(400, 25)), cx.acct, y, sans(400, 25), SOFT);
+    if (t.kind === 'in') txt(rs(t.amt), cx.inc, y, sans(600, 25), SAGE, 'right');
+    else if (t.kind === 'out') txt(rs(t.amt), cx.out, y, sans(600, 25), CLAY, 'right');
+    y += 20; rule(y); y += rowH - 20;
+  }
+  if (txns.length) {
+    if (y > H - 160) newPage();
+    txt('Total', cx.det, y, sans(700, 25), SAGE); txt(rs(inc), cx.inc, y, sans(700, 25), SAGE, 'right'); txt(rs(exp), cx.out, y, sans(700, 25), CLAY, 'right');
+  }
+
+  const made = `Made with Intentionally on ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+  pages.forEach((cv, i) => {
+    c = cv.getContext('2d');
+    txt(made, W - P, H - 50, sans(400, 20), SOFT, 'right');
+    if (pages.length > 1) txt(`Page ${i + 1} of ${pages.length}`, P, H - 50, sans(400, 20), SOFT);
+  });
+  return pages;
 }
 
 function renderPersonal() {
@@ -957,6 +1070,7 @@ function renderPersonal() {
     h += `<button class="txn" data-act="edit-txn" data-v="${t.id}"><span class="t">${title}</span><span class="a num ${cls}">${sign}${money(t.amt)}</span><span class="s">${sub}</span></button>`;
   }
   h += `</div>`;
+  h += `<div class="row"><span class="spacer"></span><button class="btn small primary" data-act="export-personal">Export month</button></div>`;
   h += `<details class="drop acctdrop"><summary><span class="dl">Accounts</span><span class="sum">Total ${money(total)} · Banks ${money(bank)} · Cash ${money(total - bank)}</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
     <div class="drop-body"><div class="accts">${accts.map(a => {
       const b = acctBalance(a.id);
@@ -1421,6 +1535,7 @@ document.addEventListener('click', e => {
     case 'day-save': saveDay(); break;
     case 'bulk': bulkEditor(); break;
     case 'export-month': exportMonthSheet(); break;
+    case 'export-personal': exportMonthSheet('personal'); break;
     case 'exp-share': shareExport(v); break;
     case 'set-default': { const v2 = $('#firstsel')?.value ?? ''; S.settings.defaultFirst = v2; save(); render(); toast(`New days will start with ${typeById(v2)?.en || 'No Mass'}`); break; }
     case 'day-clear': confirmSheet('Clear this day?', 'All entries for this day will be removed.', 'Clear day', () => { delete monthData(monthKeyOf(ui.day)).days[Number(ui.day.slice(8))]; save(); render(); toast('Day cleared'); }); break;
