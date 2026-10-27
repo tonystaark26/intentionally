@@ -201,6 +201,18 @@ nav.tabs button[aria-current="page"] svg { background: var(--secondary) }
 .entry .group.r h4 { color: var(--primary) } .entry .group.o h4 { color: var(--clay) }
 .entry .actions { display: flex; gap: 10px; align-items: center; margin-top: 18px; flex-wrap: wrap }
 .entry .actions .spacer { flex: 1 }
+.drop { border-radius: 14px; background: var(--surface-2); margin-top: 16px }
+.drop summary { list-style: none; display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; gap: 2px 10px; align-items: center; padding: 14px 16px; cursor: pointer }
+.drop summary::-webkit-details-marker { display: none }
+.drop .dl { font-weight: 700; color: var(--primary); font-size: 16px }
+.drop .sum { grid-row: 2; font-size: 13px; color: var(--muted) }
+.drop .chev { grid-row: 1 / 3; grid-column: 2; width: 22px; height: 22px; color: var(--primary); transition: transform .15s }
+.drop[open] .chev { transform: rotate(180deg) }
+.drop .drop-body { padding: 0 16px 14px; background: var(--surface); margin: 0 4px 4px; border-radius: 12px; padding-top: 6px }
+.offered { margin-top: 16px }
+.offered label[for=firstsel] { font-weight: 700; color: var(--clay); font-size: 16px }
+.bigsel { font-size: 16px; padding: 13px 14px; border-radius: 14px; appearance: none; -webkit-appearance: none; background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%23376B60' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 14px center; padding-right: 44px; font-weight: 600 }
+.linkbtn.inline { display: inline; padding: 0; margin: 0; font-size: inherit }
 .big-btn { padding: 13px 32px; font-size: 16px; border-radius: 14px }
 @media (min-width: 700px) { .entry-cols { grid-template-columns: 1fr 1fr } }
 .day.sel { background: color-mix(in srgb, var(--secondary) 55%, transparent) }
@@ -666,19 +678,17 @@ function renderEntry(pending) {
     </div>
     ${isToday ? '' : `<button class="linkbtn" data-act="day-today">Back to today</button>`}
     <div class="entry-cols">
-      <section class="group r"><h4>New intentions received ${ml(ML.received)}</h4>
+      <details class="drop r" id="recvdrop"><summary><span class="dl">Intentions received ${ml(ML.received)}</span><span class="sum" id="recvsum">${esc(recvSummary(e.r) || 'None today')}</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary><div class="drop-body">
         ${R.map(t => `<div class="stepper-row"><span class="nm">${esc(t.en)} ${ml(t.ml)}${t.id === GREGORIAN ? '<span class="note">1 intention = 30 Masses</span>' : ''}</span>${stepper('r_' + t.id, e.r?.[t.id])}</div>`).join('')}
-        ${typeById(FOUNDATION) ? foundationBox(e.fk) : ''}
         <div class="field"><label for="amt">Stipend received (₹)</label><input id="amt" type="number" inputmode="decimal" min="0" value="${n0(e.amt) || ''}" placeholder="0" data-auto="${e.amt == null || n0(e.amt) === stipendFor(e.r, e.fk) ? 1 : 0}"><span class="note">Worked out from your stipend rates. Change it if you received a different amount.</span></div>
-      </section>
-      <section class="group o"><h4>Mass offered ${ml(ML.offered)}</h4>
-        <p class="note" style="margin:0 0 4px">Tick the first Mass you offered. Every Mass after it is a bination.</p>
-        <div class="defrow"><span class="note">New days start with <b>${esc(typeById(defaultFirst())?.en || 'No Mass')}</b>.</span><button type="button" class="linkbtn" data-act="set-default">Make the ticked one my default</button></div>
-        <div class="firstlist">
-          ${O.map(t => `<label class="first"><input type="radio" name="first" value="${t.id}" ${sel === t.id ? 'checked' : ''}><span class="dot" aria-hidden="true"></span><span class="nm">${esc(t.en)} ${ml(t.ml)}${t.id === GREGORIAN ? `<span class="note">${g && (gRun || off.first === GREGORIAN) ? `${g.label}${g.rem ? ` · ${esc(g.rem)}` : ''}` : 'One of the 30 days'}</span>` : ''}</span></label>`).join('')}
-          <label class="first"><input type="radio" name="first" value="" ${sel ? '' : 'checked'}><span class="dot" aria-hidden="true"></span><span class="nm">No Mass offered</span></label>
-        </div>
-        ${typeById(BINATION) ? `<div class="stepper-row" style="margin-top:6px"><span class="nm">${esc(typeById(BINATION).en)} ${ml(typeById(BINATION).ml)}<span class="note">Masses after the first.</span></span>${stepper('o_' + BINATION, off.bin)}</div>` : ''}
+      </div></details>
+        ${typeById(FOUNDATION) ? foundationBox(e.fk) : ''}
+      <section class="offered">
+        <div class="field" style="margin-top:0"><label for="firstsel">Mass offered ${ml(ML.offered)}</label>
+          <select id="firstsel" name="first" class="bigsel">${O.map(t => `<option value="${t.id}" ${sel === t.id ? 'selected' : ''}>${esc(t.en)}</option>`).join('')}<option value="" ${sel ? '' : 'selected'}>No Mass offered</option></select>
+          ${g && (gRun || off.first === GREGORIAN) ? `<span class="note" id="gnote">Gregorian: ${esc(g.label)}${g.rem ? ` · ${esc(g.rem)}` : ''}</span>` : ''}
+          <span class="note">The first Mass you offered today. Every Mass after it is a bination. New days start with <b>${esc(typeById(defaultFirst())?.en || 'No Mass')}</b> · <button type="button" class="linkbtn inline" data-act="set-default">make this my default</button></span></div>
+        ${typeById(BINATION) ? `<div class="stepper-row" style="margin-top:8px"><span class="nm">${esc(typeById(BINATION).en)} ${ml(typeById(BINATION).ml)}<span class="note">Masses after the first</span></span>${stepper('o_' + BINATION, off.bin)}</div>` : ''}
       </section>
     </div>
     <div class="field"><label for="rem">Notes</label><textarea id="rem" placeholder="Name of the person, intention, place">${esc(remVal)}</textarea></div>
@@ -1038,8 +1048,13 @@ function foundationBox(fk) {
     <div class="seg" role="group" aria-label="Foundation Mass kind">${kinds.map(k => `<button type="button" data-fk="${k}" aria-pressed="${(fk || 'ordinary') === k}">${esc(typeById(k).en.replace(/ Mass$/, ''))}</button>`).join('')}</div>
     <p class="note">For a Foundation Mass the priest receives 50% more than the usual stipend. ${kinds.map(k => `${esc(typeById(k).en)}: ${money(typeById(k).rate)} + 50% = <b>${money(foundationRate(k))}</b>`).join('. ')}.</p></div>`;
 }
+// Short line shown on the closed Received section, e.g. "2 Ordinary · 1 Gregorian".
+function recvSummary(r) {
+  return Object.entries(r || {}).filter(([, n]) => n0(n)).map(([id, n]) => `${n} ${(typeById(id)?.en || id).replace(/ Mass$/, '')}`).join(' · ');
+}
 function refreshStipend(sh) {
   const r = readCounts(sh, 'r_'), o = readOffered(sh);
+  const rs = $('#recvsum', sh); if (rs) rs.textContent = recvSummary(r) || 'None today';
   const fb = $('#fbox', sh); if (fb) fb.hidden = !(r[FOUNDATION] || o[FOUNDATION]);
   const amt = $('#amt', sh);
   if (amt && amt.dataset.auto === '1') amt.value = stipendFor(r, sh.dataset.fkind) || '';
@@ -1052,7 +1067,8 @@ function splitOffered(o) {
   return { first: entries[0]?.[0] || '', bin: n0(o?.[BINATION]) + Math.max(0, extra) };
 }
 function readOffered(sh) {
-  const first = sh.querySelector('input[name="first"]:checked')?.value || '';
+  const sel = sh.querySelector('select[name="first"]');
+  const first = (sel ? sel.value : sh.querySelector('input[name="first"]:checked')?.value) || '';
   const bin = Math.max(0, Math.round(n0($('#st-o_bination', sh)?.value)));
   const o = {}; if (first) o[first] = 1; if (bin) o[BINATION] = bin;
   return o;
@@ -1394,7 +1410,7 @@ document.addEventListener('click', e => {
     case 'bulk': bulkEditor(); break;
     case 'export-month': exportMonthSheet(); break;
     case 'exp-share': shareExport(v); break;
-    case 'set-default': { const v2 = $('#entry input[name="first"]:checked')?.value ?? ''; S.settings.defaultFirst = v2; save(); render(); toast(`New days will start with ${typeById(v2)?.en || 'No Mass'}`); break; }
+    case 'set-default': { const v2 = $('#firstsel')?.value ?? ''; S.settings.defaultFirst = v2; save(); render(); toast(`New days will start with ${typeById(v2)?.en || 'No Mass'}`); break; }
     case 'day-clear': confirmSheet('Clear this day?', 'All entries for this day will be removed.', 'Clear day', () => { delete monthData(monthKeyOf(ui.day)).days[Number(ui.day.slice(8))]; save(); render(); toast('Day cleared'); }); break;
     case 'edit-handed': handedEditor(); break;
     case 'handed-save': { const sh = $('.sheet'), M = monthData(ui.month); M.handed = { counts: readCounts(sh, 'h_'), rem: $('#hrem', sh).value.trim() }; save(); closeSheet(); render(); toast('Saved'); break; }
