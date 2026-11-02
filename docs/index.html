@@ -262,11 +262,11 @@ nav.tabs button[aria-current="page"] svg { background: var(--secondary) }
 .txn .a { font-weight: 700; grid-row: 1 / 3; grid-column: 2; align-self: center }
 .txn .a.in { color: var(--good) } .txn .a.out { color: var(--bad) } .txn .a.x { color: var(--muted) }
 .txn .a { text-align: right }
-.txn .a .left { display: block; font-size: 12px; font-weight: 500; font-style: italic; color: var(--muted); margin-top: 1px }
+.txn .a .left { display: block; font-size: 12px; font-weight: 500; color: var(--muted); margin-top: 1px }
 .amtrow { display: flex; gap: 6px } .amtrow input { flex: 1 }
 .calcbtn { flex: none; width: 46px; border: 1px solid var(--line); border-radius: 12px; background: var(--secondary); color: var(--primary); display: grid; place-items: center }
 .calcbtn svg { width: 22px; height: 22px }
-.after { font-size: 12.5px; font-style: italic; color: var(--muted); margin: -2px 0 6px }
+.after { font-size: 12.5px; color: var(--muted); margin: 6px 0 8px }
 .after.neg { color: var(--bad) }
 .calc { margin: 2px 0 10px; padding: 10px; border-radius: 16px; background: var(--surface-2) }
 .calc .disp { text-align: right; padding: 6px 8px 10px; min-height: 52px }
@@ -594,6 +594,8 @@ function runningBalances() {
   }
   return after;
 }
+// The account new entries start with: the one the priest chose, else the first in the list.
+const defaultAcct = () => S.personal.accounts.some(a => a.id === S.settings.defaultAcct) ? S.settings.defaultAcct : S.personal.accounts[0]?.id;
 const acctName = id => S.personal.accounts.find(a => a.id === id)?.name || 'Removed account';
 
 /* ---------- Render ---------- */
@@ -1104,7 +1106,7 @@ function renderPersonal() {
   h += `<details class="drop acctdrop"><summary><span class="dl">Accounts</span><span class="sum">Total ${money(total)} · Banks ${money(bank)} · Cash ${money(total - bank)}</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
     <div class="drop-body"><div class="accts">${accts.map(a => {
       const b = acctBalance(a.id);
-      return `<button class="acct" data-act="edit-acct" data-v="${a.id}"><span><span>${esc(a.name)}</span><br><span class="k">${a.kind === 'bank' ? 'Bank account' : 'Cash'}</span></span><span class="v num ${b < 0 ? 'neg' : ''}">${money(b)}</span></button>`;
+      return `<button class="acct" data-act="edit-acct" data-v="${a.id}"><span><span>${esc(a.name)}</span><br><span class="k">${a.kind === 'bank' ? 'Bank account' : 'Cash'}${defaultAcct() === a.id ? ' · Default' : ''}</span></span><span class="v num ${b < 0 ? 'neg' : ''}">${money(b)}</span></button>`;
     }).join('') || '<div class="emptystate">Add your bank accounts and cash.</div>'}</div>
     <button class="btn small" style="margin-top:10px" data-act="add-acct">Add account</button></div></details>`;
   h += `</div>`;
@@ -1301,7 +1303,7 @@ function openingEditor(start) {
 // Categories: the built-in list plus any the priest added himself (stored per kind in S.personal.cats).
 const catList = kind => [...(CATS[kind] || []), ...((S.personal.cats || {})[kind] || [])];
 function txnEditor(id) {
-  const t = id ? S.personal.txns.find(x => x.id === id) : { kind: 'out', date: todayISO(), acct: S.personal.accounts[0]?.id, amt: '', cat: '', note: '' };
+  const t = id ? S.personal.txns.find(x => x.id === id) : { kind: 'out', date: todayISO(), acct: defaultAcct(), amt: '', cat: '', note: '' };
   if (!S.personal.accounts.length) { toast('Add an account first'); return acctEditor(); }
   const opts = (sel) => S.personal.accounts.map(a => `<option value="${a.id}" ${a.id === sel ? 'selected' : ''}>${esc(a.name)}</option>`).join('');
   const catOpts = (kind, sel) => { const l = catList(kind); if (sel && !l.includes(sel)) l.push(sel); return l.map(c => `<option ${c === sel ? 'selected' : ''}>${esc(c)}</option>`).join('') + '<option value="__new">+ Add new category…</option>'; };
@@ -1311,7 +1313,7 @@ function txnEditor(id) {
       <div class="field"><label for="tdate">Date</label><input id="tdate" type="date" value="${t.date}"></div></div>
     <div class="calc" id="calcpad" hidden><div class="disp"><div class="expr"></div><div class="res num">0</div></div><div class="keys">${['7', '8', '9', '÷', '4', '5', '6', '×', '1', '2', '3', '−', '.', '0', '⌫', '+', 'C', '(', ')', '='].map(k => `<button type="button" data-k="${k}" class="${'÷×−+()'.includes(k) ? 'op' : ''}">${k}</button>`).join('')}<button type="button" class="use" data-k="use" style="grid-column:1 / -1">Use this amount</button></div></div>
     <div class="after" id="tafter"></div>
-    <div class="field"><label for="tacct" id="tacctl">${t.kind === 'xfer' ? 'From account' : 'Account'}</label><select id="tacct">${opts(t.acct)}</select></div>
+    <div class="field"><label for="tacct" id="tacctl">${t.kind === 'xfer' ? 'From account' : 'Account'}</label><select id="tacct">${opts(t.acct)}</select><button type="button" class="linkbtn" id="tdefacct" style="margin:0" data-act="txn-def-acct">Make this my default account</button></div>
     <div class="field" id="tto-f" ${t.kind === 'xfer' ? '' : 'hidden'}><label for="tto">To account</label><select id="tto">${opts(t.to || S.personal.accounts.find(a => a.id !== t.acct)?.id)}</select></div>
     <div class="field" id="tcat-f" ${t.kind === 'xfer' ? 'hidden' : ''}><label for="tcat">Category</label><select id="tcat">${catOpts(t.kind === 'xfer' ? 'out' : t.kind, t.cat)}</select><input id="tnewcat" style="margin-top:8px" placeholder="New category, e.g. Examination fees" hidden></div>
     <div class="field"><label for="tnote">Note</label><input id="tnote" value="${esc(t.note || '')}" placeholder="Optional"></div>
@@ -1338,6 +1340,8 @@ function txnEditor(id) {
     ['#tamt', '#tacct'].forEach(q => { $(q, sh).addEventListener('input', showAfter); $(q, sh).addEventListener('change', showAfter); });
     sh.querySelectorAll('[data-kind]').forEach(b => b.addEventListener('click', showAfter));
     showAfter();
+    const defLink = () => { $('#tdefacct', sh).hidden = $('#tacct', sh).value === defaultAcct(); };
+    $('#tacct', sh).addEventListener('change', defLink); defLink();
     // Small calculator beside the amount: work out a sum, then "Use this amount" fills it in.
     const pad = $('#calcpad', sh); let expr = '';
     const calcVal = e => { try { const js = e.replace(/×/g, '*').replace(/÷/g, '/').replace(/−/g, '-'); if (!/^[\d+\-*/.() ]*$/.test(js)) return NaN; const r = Function(`"use strict";return (${js || 0})`)(); return Number.isFinite(r) ? Math.round(r * 100) / 100 : NaN; } catch (_) { return NaN; } };
@@ -1383,6 +1387,7 @@ function acctEditor(id) {
     <div class="two"><div class="field"><label for="akind">Kind</label><select id="akind"><option value="bank" ${a.kind === 'bank' ? 'selected' : ''}>Bank account</option><option value="cash" ${a.kind === 'cash' ? 'selected' : ''}>Cash</option></select></div>
     <div class="field"><label for="aopen">Starting balance (₹)</label><input id="aopen" type="number" inputmode="decimal" value="${a.opening}"></div></div>
     <p class="note">The starting balance is what the account held before your first entry here.</p>
+    <label class="switch"><span>Default account for new entries</span><input type="checkbox" id="adef" ${id && defaultAcct() === id ? 'checked' : ''}></label>
     <div class="actions">${id ? `<button class="btn danger" data-act="acct-del" data-v="${id}" ${used ? 'disabled title="This account has transactions"' : ''}>Remove</button>` : ''}<span class="spacer"></span><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="acct-save" data-v="${id || ''}">Save</button></div>
     ${used ? '<p class="note">To remove this account, delete its transactions first.</p>' : ''}`);
 }
@@ -1595,6 +1600,7 @@ document.addEventListener('click', e => {
     case 'export-month': exportMonthSheet(); break;
     case 'export-personal': exportMonthSheet('personal'); break;
     case 'exp-share': shareExport(v); break;
+    case 'txn-def-acct': { const a = $('#tacct')?.value; if (a) { S.settings.defaultAcct = a; save(); render(); $('#tdefacct').hidden = true; toast(`New entries will use ${acctName(a)}`); } break; }
     case 'set-default': { const v2 = $('#firstsel')?.value ?? ''; S.settings.defaultFirst = v2; save(); render(); toast(`New days will start with ${typeById(v2)?.en || 'No Mass'}`); break; }
     case 'day-clear': confirmSheet('Clear this day?', 'All entries for this day will be removed.', 'Clear day', () => { delete monthData(monthKeyOf(ui.day)).days[Number(ui.day.slice(8))]; save(); render(); toast('Day cleared'); }); break;
     case 'edit-handed': handedEditor(); break;
@@ -1617,6 +1623,8 @@ document.addEventListener('click', e => {
       const a = { id: v || uid(), name, kind: $('#akind', sh).value, opening: n0($('#aopen', sh).value) };
       const i = S.personal.accounts.findIndex(x => x.id === a.id);
       if (i >= 0) S.personal.accounts[i] = a; else S.personal.accounts.push(a);
+      if ($('#adef', sh).checked) S.settings.defaultAcct = a.id;
+      else if (S.settings.defaultAcct === a.id) delete S.settings.defaultAcct;
       save(); closeSheet(); render(); toast('Saved'); break;
     }
     case 'acct-del': S.personal.accounts = S.personal.accounts.filter(a => a.id !== v); save(); closeSheet(); render(); break;
