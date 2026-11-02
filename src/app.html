@@ -250,6 +250,21 @@ nav.tabs button[aria-current="page"] svg { background: var(--secondary) }
 .txn .s { font-size: 12.5px; color: var(--muted); grid-column: 1 }
 .txn .a { font-weight: 700; grid-row: 1 / 3; grid-column: 2; align-self: center }
 .txn .a.in { color: var(--good) } .txn .a.out { color: var(--bad) } .txn .a.x { color: var(--muted) }
+.txn .a { text-align: right }
+.txn .a .left { display: block; font-size: 12px; font-weight: 500; font-style: italic; color: var(--muted); margin-top: 1px }
+.amtrow { display: flex; gap: 6px } .amtrow input { flex: 1 }
+.calcbtn { flex: none; width: 46px; border: 1px solid var(--line); border-radius: 12px; background: var(--secondary); color: var(--primary); display: grid; place-items: center }
+.calcbtn svg { width: 22px; height: 22px }
+.after { font-size: 12.5px; font-style: italic; color: var(--muted); margin: -2px 0 6px }
+.after.neg { color: var(--bad) }
+.calc { margin: 2px 0 10px; padding: 10px; border-radius: 16px; background: var(--surface-2) }
+.calc .disp { text-align: right; padding: 6px 8px 10px; min-height: 52px }
+.calc .expr { font-size: 14px; color: var(--muted); min-height: 18px; word-break: break-all }
+.calc .res { font-size: 24px; font-weight: 700 }
+.calc .keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px }
+.calc .keys button { padding: 12px 0; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-size: 18px; font-weight: 600; color: var(--ink) }
+.calc .keys .op { background: var(--secondary); color: var(--primary) }
+.calc .keys .use { background: var(--primary); color: #fff; border-color: var(--primary) }
 .dategrp { font-size: 12px; color: var(--muted); padding: 14px 2px 2px; font-weight: 600 }
 .emptystate { text-align: center; color: var(--muted); padding: 24px 10px; font-size: 14px }
 
@@ -554,6 +569,19 @@ function acctBalance(id, upto) {
     if (t.kind === 'xfer') { if (t.acct === id) b -= n0(t.amt); if (t.to === id) b += n0(t.amt); }
   }
   return b;
+}
+// Each account's balance right after every transaction, in date order (same-day entries in the order they were added).
+function runningBalances() {
+  const bal = {}, after = {};
+  for (const a of S.personal.accounts) bal[a.id] = n0(a.opening);
+  const list = S.personal.txns.map((t, i) => [t, i]).sort((a, b) => a[0].date.localeCompare(b[0].date) || a[1] - b[1]);
+  for (const [t] of list) {
+    const v = n0(t.amt);
+    if (t.kind === 'in') bal[t.acct] = n0(bal[t.acct]) + v;
+    else { bal[t.acct] = n0(bal[t.acct]) - v; if (t.kind === 'xfer') bal[t.to] = n0(bal[t.to]) + v; }
+    after[t.id] = bal[t.acct];
+  }
+  return after;
 }
 const acctName = id => S.personal.accounts.find(a => a.id === id)?.name || 'Removed account';
 
@@ -1032,7 +1060,8 @@ function renderPersonal() {
   const accts = S.personal.accounts;
   const total = accts.reduce((a, x) => a + acctBalance(x.id), 0);
   const bank = accts.filter(a => a.kind === 'bank').reduce((a, x) => a + acctBalance(x.id), 0);
-  const txns = S.personal.txns.filter(t => monthKeyOf(t.date) === k).sort((a, b) => b.date.localeCompare(a.date));
+  // Newest first; entries on the same day show the latest added on top, so the "left" figures read downwards correctly.
+  const txns = S.personal.txns.map((t, i) => [t, i]).filter(([t]) => monthKeyOf(t.date) === k).sort((a, b) => b[0].date.localeCompare(a[0].date) || b[1] - a[1]).map(([t]) => t);
   const inc = txns.filter(t => t.kind === 'in').reduce((a, t) => a + n0(t.amt), 0);
   const exp = txns.filter(t => t.kind === 'out').reduce((a, t) => a + n0(t.amt), 0);
 
@@ -1047,6 +1076,7 @@ function renderPersonal() {
   h += `<div class="card" style="padding:4px 14px">`;
   if (!txns.length) h += `<div class="emptystate">No transactions in ${esc(monthName(k))}. Tap + to add income, an expense or a transfer.</div>`;
   let last = '';
+  const after = runningBalances();
   for (const t of txns) {
     if (t.date !== last) {
       last = t.date;
@@ -1056,7 +1086,7 @@ function renderPersonal() {
     const sub = [t.kind === 'xfer' ? `From ${esc(acctName(t.acct))}` : esc(acctName(t.acct)), esc(t.note || '')].filter(Boolean).join(' · ');
     const cls = t.kind === 'in' ? 'in' : t.kind === 'out' ? 'out' : 'x';
     const sign = t.kind === 'in' ? '+' : t.kind === 'out' ? '−' : '';
-    h += `<button class="txn" data-act="edit-txn" data-v="${t.id}"><span class="t">${title}</span><span class="a num ${cls}">${sign}${money(t.amt)}</span><span class="s">${sub}</span></button>`;
+    h += `<button class="txn" data-act="edit-txn" data-v="${t.id}"><span class="t">${title}</span><span class="a num ${cls}">${sign}${money(t.amt)}<span class="left">${after[t.id] < 0 ? '−' : ''}${money(Math.abs(after[t.id]))} left</span></span><span class="s">${sub}</span></button>`;
   }
   h += `</div>`;
   h += `<div class="row"><span class="spacer"></span><button class="btn small primary" data-act="export-personal">Export month</button></div>`;
@@ -1266,8 +1296,10 @@ function txnEditor(id) {
   const catOpts = (kind, sel) => { const l = catList(kind); if (sel && !l.includes(sel)) l.push(sel); return l.map(c => `<option ${c === sel ? 'selected' : ''}>${esc(c)}</option>`).join('') + '<option value="__new">+ Add new category…</option>'; };
   openSheet(`<h3>${id ? 'Edit transaction' : 'New transaction'}</h3>
     <div class="seg" role="group" aria-label="Type" style="margin-top:8px">${[['out', 'Expense'], ['in', 'Income'], ['xfer', 'Transfer']].map(([v, l]) => `<button type="button" data-kind="${v}" aria-pressed="${t.kind === v}">${l}</button>`).join('')}</div>
-    <div class="two"><div class="field"><label for="tamt">Amount (₹)</label><input id="tamt" type="number" inputmode="decimal" min="0" value="${t.amt}"></div>
+    <div class="two"><div class="field"><label for="tamt">Amount (₹)</label><div class="amtrow"><input id="tamt" type="number" inputmode="decimal" min="0" value="${t.amt}"><button type="button" class="calcbtn" id="tcalc" aria-label="Calculator" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2.5"/><path d="M8 7h8M8.5 11.5h.01M12 11.5h.01M15.5 11.5h.01M8.5 15h.01M12 15h.01M15.5 15h.01M8.5 18h.01M12 18h3.5"/></svg></button></div></div>
       <div class="field"><label for="tdate">Date</label><input id="tdate" type="date" value="${t.date}"></div></div>
+    <div class="calc" id="calcpad" hidden><div class="disp"><div class="expr"></div><div class="res num">0</div></div><div class="keys">${['7', '8', '9', '÷', '4', '5', '6', '×', '1', '2', '3', '−', '.', '0', '⌫', '+', 'C', '(', ')', '='].map(k => `<button type="button" data-k="${k}" class="${'÷×−+()'.includes(k) ? 'op' : ''}">${k}</button>`).join('')}<button type="button" class="use" data-k="use" style="grid-column:1 / -1">Use this amount</button></div></div>
+    <div class="after" id="tafter"></div>
     <div class="field"><label for="tacct" id="tacctl">${t.kind === 'xfer' ? 'From account' : 'Account'}</label><select id="tacct">${opts(t.acct)}</select></div>
     <div class="field" id="tto-f" ${t.kind === 'xfer' ? '' : 'hidden'}><label for="tto">To account</label><select id="tto">${opts(t.to || S.personal.accounts.find(a => a.id !== t.acct)?.id)}</select></div>
     <div class="field" id="tcat-f" ${t.kind === 'xfer' ? 'hidden' : ''}><label for="tcat">Category</label><select id="tcat">${catOpts(t.kind === 'xfer' ? 'out' : t.kind, t.cat)}</select><input id="tnewcat" style="margin-top:8px" placeholder="New category, e.g. Examination fees" hidden></div>
@@ -1282,6 +1314,32 @@ function txnEditor(id) {
       $('#tacctl', sh).textContent = kind === 'xfer' ? 'From account' : 'Account';
       if (kind !== 'xfer') { $('#tcat', sh).innerHTML = catOpts(kind, ''); $('#tnewcat', sh).hidden = true; }
     }));
+    // Balance left in the chosen account once this entry is saved (any older copy of this entry is taken out first).
+    const showAfter = () => {
+      const kind = sh.dataset.kind, acct = $('#tacct', sh).value, v = n0($('#tamt', sh).value), el = $('#tafter', sh);
+      let b = acctBalance(acct);
+      if (id && t.acct === acct) b += t.kind === 'in' ? -n0(t.amt) : n0(t.amt);
+      if (id && t.kind === 'xfer' && t.to === acct) b -= n0(t.amt);
+      b += kind === 'in' ? v : -v;
+      el.textContent = `${acctName(acct)} after this: ${b < 0 ? '−' : ''}${money(Math.abs(b))}`;
+      el.classList.toggle('neg', b < 0);
+    };
+    ['#tamt', '#tacct'].forEach(q => { $(q, sh).addEventListener('input', showAfter); $(q, sh).addEventListener('change', showAfter); });
+    sh.querySelectorAll('[data-kind]').forEach(b => b.addEventListener('click', showAfter));
+    showAfter();
+    // Small calculator beside the amount: work out a sum, then "Use this amount" fills it in.
+    const pad = $('#calcpad', sh); let expr = '';
+    const calcVal = e => { try { const js = e.replace(/×/g, '*').replace(/÷/g, '/').replace(/−/g, '-'); if (!/^[\d+\-*/.() ]*$/.test(js)) return NaN; const r = Function(`"use strict";return (${js || 0})`)(); return Number.isFinite(r) ? Math.round(r * 100) / 100 : NaN; } catch (_) { return NaN; } };
+    const draw = () => { $('.expr', pad).textContent = expr; const r = calcVal(expr); $('.res', pad).textContent = isNaN(r) ? '…' : r.toLocaleString('en-IN'); };
+    $('#tcalc', sh).addEventListener('click', () => { pad.hidden = !pad.hidden; $('#tcalc', sh).setAttribute('aria-expanded', !pad.hidden); if (!pad.hidden) { expr = $('#tamt', sh).value || ''; draw(); } });
+    pad.addEventListener('click', e => {
+      const k = e.target.closest('[data-k]')?.dataset.k; if (!k) return;
+      if (k === 'C') expr = ''; else if (k === '⌫') expr = expr.slice(0, -1);
+      else if (k === '=') { const r = calcVal(expr); if (!isNaN(r)) expr = String(r); }
+      else if (k === 'use') { const r = calcVal(expr); if (isNaN(r) || r < 0) return toast('Check the sum'); $('#tamt', sh).value = r; pad.hidden = true; $('#tcalc', sh).setAttribute('aria-expanded', 'false'); showAfter(); return; }
+      else expr += k;
+      draw();
+    });
     $('#tcat', sh).addEventListener('change', e => { const nw = e.target.value === '__new', inp = $('#tnewcat', sh); inp.hidden = !nw; if (nw) inp.focus(); });
   });
 }
