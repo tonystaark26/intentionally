@@ -56,6 +56,7 @@ header.band .brand { flex: 1; min-width: 0 }
 .brand small { display: block; font-weight: 500; font-size: 13px; color: var(--muted); letter-spacing: 0; margin-top: 4px }
 header.band .hold { text-align: left; font-size: 12px; color: var(--muted); line-height: 1.3; background: var(--surface); border: 0; border-radius: 16px; padding: 10px 14px; box-shadow: var(--shadow); max-width: 52%; min-width: 0; display: grid; gap: 2px }
 header.band .hold b { font-size: 15px; font-weight: 700; color: var(--primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+header.band .hold .ofd { font-style: normal; font-size: 12.5px; font-weight: 600; color: var(--clay); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 header.band .hold em { font-style: normal; font-size: 13px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 
 .banner { background: var(--warn-bg); color: var(--warn-ink); border-radius: 14px; padding: 12px 14px; display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 4px; font-size: 14px }
@@ -161,6 +162,16 @@ nav.tabs button[aria-current="page"] svg { background: var(--secondary) }
 .greg + .greg { border-top: 1px solid var(--line) }
 .greg .bar { grid-column: 1 / -1; height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden }
 .greg .bar span { display: block; height: 100%; background: var(--primary); border-radius: 4px }
+.ofrow { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 12px; align-items: center; padding: 10px 0; width: 100%; background: none; border: 0; text-align: left }
+.ofrow + .ofrow { border-top: 1px solid var(--line) }
+.ofname { border: 0; background: none; padding: 0; text-align: left; min-width: 0; color: inherit; font: inherit }
+.ofrow .who { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.ofrow .k { font-size: 12.5px; color: var(--muted) }
+.ofrow.done .who { color: var(--muted); text-decoration: line-through }
+.tick { width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--surface); display: grid; place-items: center; color: transparent }
+.tick svg { width: 16px; height: 16px }
+.ofrow.done .tick { background: var(--primary); border-color: var(--primary); color: #fff }
+.ofsub { font-size: 12px; font-weight: 600; color: var(--muted); padding: 10px 0 0; text-transform: uppercase; letter-spacing: .04em }
 .pill { font-size: 12px; padding: 3px 10px; border-radius: 999px; background: var(--surface-2); color: var(--ink); white-space: nowrap; font-weight: 500 }
 .pill.warn { background: var(--peach); color: var(--clay) }
 .pill.good { background: var(--secondary); color: var(--primary) }
@@ -373,6 +384,7 @@ function blank() {
     settings: { types: DEFAULT_TYPES.map(t => ({ ...t })), typesRev: TYPES_REV, showMl: false, mlOff: 1, gClientId: '' },
     mass: {},
     personal: { accounts: [{ id: 'cash', name: 'Cash in hand', kind: 'cash', opening: 0 }], txns: [] },
+    offices: [],
     meta: { updatedAt: new Date().toISOString(), example: false, lastDriveBackup: null, driveEmail: null, welcomed: false, driveLinked: false },
   };
 }
@@ -402,6 +414,13 @@ function sample() {
   for (const [d, r, o, amt, rem] of plan) s.mass[k].days[d] = { r, o, amt, rem, ...(Object.keys(o).length ? {} : { noMass: true }) };
   if (s.mass[k].days[9]) s.mass[k].days[9].fk = 'solemn';
   s.mass[k].handed = { counts: { ordinary: 2 }, rem: 'Receipt no. 214' };
+  const od = n => { const x = new Date(todayISO() + 'T00:00'); x.setDate(x.getDate() + n); return `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())}`; };
+  s.offices = [
+    { id: uid(), kind: 'church', name: 'Late Annamma Varghese', due: od(-3), recd: od(-6), note: '', done: od(-3) },
+    { id: uid(), kind: 'cemetery', name: 'Late Joseph Mathew', due: od(0), recd: od(-2), note: '1st anniversary', done: null },
+    { id: uid(), kind: 'church', name: 'Late Thresiamma', due: od(0), recd: od(-1), note: '', done: null },
+    { id: uid(), kind: 'cemetery', name: 'Late Kuriakose', due: od(2), recd: od(0), note: 'Family grave', done: null },
+  ];
   s.personal.accounts = [
     { id: 'cash', name: 'Cash in hand', kind: 'cash', opening: 3200 },
     { id: 'sbi', name: 'SBI Savings', kind: 'bank', opening: 48500 },
@@ -444,6 +463,7 @@ function migrate(s) {
   s.personal = s.personal || b.personal;
   s.personal.accounts = s.personal.accounts || [];
   s.personal.txns = s.personal.txns || [];
+  s.offices = s.offices || [];
   s.meta = { ...b.meta, ...(s.meta || {}) };
   return s;
 }
@@ -480,6 +500,71 @@ function closingFrom(open, tot) {
 }
 // Walks the book in date order. Each Gregorian Mass offered goes to the oldest set already received and not yet finished,
 // so Masses offered before a set was received never count toward it.
+/* ---------- Office for the dead ---------- */
+// Two rites. Each office received is one record with the person's name and the date it is to be prayed.
+// The rate is split among priest, sacristan and church; the split is shown only in the month-end account (user, 2026-11-04).
+const OFFICES = {
+  church: { en: 'Office in church', short: 'In church', rate: 30, share: [['Priest', 15], ['Sacristan', 10], ['Church', 5]] },
+  cemetery: { en: 'Office in cemetery', short: 'In cemetery', rate: 50, share: [['Priest', 25], ['Sacristan', 15], ['Church', 10]] },
+};
+const officesDue = iso => S.offices.filter(o => !o.done && o.due <= iso);
+function officeTotals(k) {
+  const t = {};
+  for (const id in OFFICES) t[id] = { r: 0, d: 0 };
+  for (const o of S.offices) {
+    if (!t[o.kind]) continue;
+    if (monthKeyOf(o.recd) === k) t[o.kind].r++;
+    if (o.done && monthKeyOf(o.done) === k) t[o.kind].d++;
+  }
+  return t;
+}
+const officeShares = tot => { const sh = {}; for (const id in OFFICES) for (const [who, v] of OFFICES[id].share) sh[who] = (sh[who] || 0) + v * tot[id].r; return sh; };
+const dayLabel = iso => {
+  const n = Math.round((new Date(iso + 'T00:00') - new Date(todayISO() + 'T00:00')) / 86400000);
+  return n === 0 ? 'Today' : n === 1 ? 'Tomorrow' : n === -1 ? 'Yesterday' : new Date(iso + 'T00:00').toLocaleDateString('en-IN', { weekday: n > 0 && n < 7 ? 'short' : undefined, day: 'numeric', month: 'short' });
+};
+function renderOffices() {
+  const today = todayISO();
+  const late = S.offices.filter(o => !o.done && o.due < today).sort((a, b) => a.due.localeCompare(b.due));
+  const now = S.offices.filter(o => o.due === today || (o.done === today && o.due < today)).sort((a, b) => !!a.done - !!b.done);
+  const next = S.offices.filter(o => !o.done && o.due > today).sort((a, b) => a.due.localeCompare(b.due));
+  const row = o => {
+    const d = o.done ? 'done' : '', lateBy = !o.done && o.due < today ? Math.round((new Date(today + 'T00:00') - new Date(o.due + 'T00:00')) / 86400000) : 0;
+    return `<div class="ofrow ${d}"><button class="tick" data-act="office-done" data-v="${o.id}" aria-pressed="${!!o.done}" aria-label="${o.done ? 'Mark not done' : 'Mark done'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
+      <button class="ofname" data-act="office-edit" data-v="${o.id}"><div class="who">${esc(o.name || 'Name not given')}</div><div class="k">${OFFICES[o.kind]?.short || ''}${o.due !== today ? ' · ' + dayLabel(o.due) : ''}${o.note ? ' · ' + esc(o.note) : ''}</div></button>
+      ${lateBy ? `<span class="pill bad">${lateBy} day${lateBy > 1 ? 's' : ''} late</span>` : o.done ? '<span class="pill good">Done</span>' : o.due === today ? '<span class="pill warn">Today</span>' : ''}</div>`;
+  };
+  let h = `<div class="card"><div class="section-h" style="margin:0 0 4px"><h3>Office for the dead</h3><button class="btn small" data-act="office-add">Receive</button></div>`;
+  if (!late.length && !now.length && !next.length) h += `<p class="note" style="margin:6px 0 2px">No offices to pray.</p>`;
+  if (late.length) h += `<div class="ofsub">Not done yet</div>` + late.map(row).join('');
+  if (now.length) h += `<div class="ofsub">Today</div>` + now.map(row).join('');
+  if (next.length) h += `<div class="ofsub">Coming up</div>` + next.slice(0, 6).map(row).join('') + (next.length > 6 ? `<p class="note" style="margin:6px 0 0">and ${next.length - 6} more</p>` : '');
+  return h + `</div>`;
+}
+function officeEditor(id) {
+  const o = id ? S.offices.find(x => x.id === id) : { kind: 'church', name: '', due: todayISO(), recd: todayISO(), note: '' };
+  openSheet(`<h3>${id ? 'Office for the dead' : 'Receive office for the dead'}</h3>
+    <div class="seg" role="group" aria-label="Kind" style="margin-top:8px">${Object.entries(OFFICES).map(([k, v]) => `<button type="button" data-okind="${k}" aria-pressed="${o.kind === k}">${v.short} ₹${v.rate}</button>`).join('')}</div>
+    <div class="field"><label for="oname">For</label><input id="oname" value="${esc(o.name)}" placeholder="Name of the departed"></div>
+    <div class="two"><div class="field"><label for="odue">Pray on</label><input id="odue" type="date" value="${o.due}"></div>
+      <div class="field"><label for="orecd">Received on</label><input id="orecd" type="date" value="${o.recd}"></div></div>
+    <div class="field"><label for="onote">Note</label><input id="onote" value="${esc(o.note || '')}" placeholder="Optional, e.g. family or place"></div>
+    ${id ? `<label class="switch"><span>Done</span><input type="checkbox" id="odone" ${o.done ? 'checked' : ''}></label>` : ''}
+    <div class="actions">${id ? `<button class="btn danger" data-act="office-del" data-v="${id}">Delete</button>` : ''}<span class="spacer"></span><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="office-save" data-v="${id || ''}">Save</button></div>`,
+  sh => {
+    sh.dataset.okind = o.kind;
+    sh.querySelectorAll('[data-okind]').forEach(b => b.addEventListener('click', () => { sh.dataset.okind = b.dataset.okind; sh.querySelectorAll('[data-okind]').forEach(x => x.setAttribute('aria-pressed', x === b)); }));
+  });
+}
+function saveOffice(id) {
+  const sh = $('.sheet'), old = id && S.offices.find(x => x.id === id);
+  const o = { id: id || uid(), kind: sh.dataset.okind, name: $('#oname', sh).value.trim(), due: $('#odue', sh).value || todayISO(), recd: $('#orecd', sh).value || todayISO(), note: $('#onote', sh).value.trim(), done: null };
+  if (id) o.done = $('#odone', sh).checked ? (old?.done || todayISO()) : null;
+  const i = S.offices.findIndex(x => x.id === o.id);
+  if (i >= 0) S.offices[i] = o; else S.offices.push(o);
+  save(); closeSheet(); render(); toast(id ? 'Saved' : `Office saved for ${dayLabel(o.due).toLowerCase()}`);
+}
+
 function gregorianSets() {
   const sets = [], keys = Object.keys(S.mass).sort();
   const firstManual = keys.find(k => S.mass[k].opening?.manual);
@@ -604,10 +689,11 @@ function render() {
   let tName = tFirst ? (typeById(tFirst)?.en || tFirst) + (tFirst === FOUNDATION && te.fk ? ` (${typeById(te.fk)?.en.replace(/ Mass$/, '') || te.fk})` : '') : te?.noMass ? 'No Mass' : '';
   let tRem = te?.rem || '';
   // During a Gregorian set, today's intention is the set's intention, even before today is marked.
+  const ofToday = officesDue(tISO);
   if (tg) { tName = tg.set.carried ? `Gregorian · ${tg.need - tg.day + 1} left` : `Gregorian · day ${tg.day} of ${tg.need}`; tRem = tg.rem || tRem; }
   $('#band').innerHTML = `<div class="in">
     <div class="brand">Intentionally<small>Mass book · Personal accounts</small></div>
-    ${ui.tab === 'mass' ? `<button class="hold" data-act="day-today" aria-label="Go to today's entry"><span>Today's intention</span><b>${tName ? esc(tName) : 'Not marked yet'}</b>${tRem ? `<em>${esc(tRem)}</em>` : ''}</button>` : ''}</div>`;
+    ${ui.tab === 'mass' ? `<button class="hold" data-act="day-today" aria-label="Go to today's entry"><span>Today's intention</span><b>${tName ? esc(tName) : 'Not marked yet'}</b>${tRem ? `<em>${esc(tRem)}</em>` : ''}${ofToday.length ? `<span class="ofd">Office for the dead: ${ofToday.length}</span>` : ''}</button>` : ''}</div>`;
   let html = '';
   if (S.meta.example) html += `<div class="banner"><span>These are example entries so you can see how the app works.</span><button class="btn small" data-act="clear-examples">Clear examples and start</button></div>`;
   html += ui.tab === 'mass' ? renderMass() : ui.tab === 'personal' ? renderPersonal() : renderSettings();
@@ -640,6 +726,7 @@ function renderMass() {
   if (!S.meta.example && !S.meta.startDone && !Object.values(S.mass).some(M => M.opening?.manual))
     h += `<div class="card"><h3 style="margin:0 0 4px;font-size:17px">Already holding intentions?</h3><p class="note" style="margin:0 0 12px">If you have intentions with you from before, enter how many of each kind and start from there. No need to enter past months.</p><div class="row"><button class="btn primary" data-act="start-balance">Enter my balance</button><button class="btn" data-act="start-none">I have none</button></div></div>`;
   h += renderEntry(pending);
+  h += renderOffices();
   h += renderGregorians();
 
   // This month's days
@@ -674,6 +761,16 @@ function renderMass() {
   }
   h += `</tbody></table></div>
     <div class="row"><button class="btn small" data-act="edit-opening">Opening balance</button><button class="btn small" data-act="edit-handed">Handed over</button><span class="spacer"></span><button class="btn small primary" data-act="export-month">Export month</button></div>`;
+  // Office for the dead: counts and money for the month, with each person's share.
+  const ot = officeTotals(k), osh = officeShares(ot), oAmt = Object.keys(OFFICES).reduce((a, id) => a + ot[id].r * OFFICES[id].rate, 0);
+  h += `<div class="section-h" style="margin-top:12px"><h3>Office for the dead · ${esc(monthName(k))}</h3></div>
+    <div class="card scroll"><table class="sumtable num"><thead><tr><th>Office</th><th>Received</th><th>Prayed</th><th>Amount</th></tr></thead><tbody>
+    ${Object.entries(OFFICES).map(([id, v]) => `<tr><td>${v.en}</td><td>${ot[id].r}</td><td>${ot[id].d}</td><td>${money(ot[id].r * v.rate)}</td></tr>`).join('')}
+    <tr><td><b>Total</b></td><td><b>${Object.values(ot).reduce((a, x) => a + x.r, 0)}</b></td><td><b>${Object.values(ot).reduce((a, x) => a + x.d, 0)}</b></td><td><b>${money(oAmt)}</b></td></tr>
+    <tr><td colspan="4" class="note" style="text-align:left;padding-top:10px">Shares: ${Object.entries(osh).map(([w, v]) => `${w} <b>${money(v)}</b>`).join(' · ')}</td></tr>
+    <tr><td colspan="4" class="note" style="text-align:left">Still to pray: <b>${S.offices.filter(o => !o.done).length}</b></td></tr>
+    </tbody></table></div>
+    <div class="row"><span class="spacer"></span><button class="btn small primary" data-act="export-offices">Export offices</button></div>`;
   h += `</div>`;
   return h;
 }
@@ -924,20 +1021,20 @@ function jpegToPdf(jpegs, pw, ph) {
 const EXP = {};
 // kind 'mass' is the Mass book page (A4 landscape); 'personal' is the personal account statement (A4 portrait, one or more pages).
 async function exportMonthSheet(kind = 'mass') {
-  const personal = kind === 'personal', k = personal ? ui.pMonth : ui.month;
-  const base = `${personal ? 'Personal-account' : 'Mass-account'}-${k}`;
-  openSheet(`<h2>Export ${esc(monthName(k))}</h2><p class="note">${personal ? "The month's income, spending and account balances, ready to send or print." : "The month's page from your Mass book, ready to send or print."}</p>
+  const personal = kind === 'personal', offices = kind === 'offices', k = personal ? ui.pMonth : ui.month;
+  const base = `${personal ? 'Personal-account' : offices ? 'Office-for-the-dead' : 'Mass-account'}-${k}`;
+  openSheet(`<h2>Export ${esc(monthName(k))}</h2><p class="note">${personal ? "The month's income, spending and account balances, ready to send or print." : offices ? "The month's offices for the dead with the shares, ready to send or print." : "The month's page from your Mass book, ready to send or print."}</p>
     <div class="exp-prev"><span class="note">Preparing…</span></div>
     <div class="actions"><button class="btn" data-act="close">Close</button><span class="spacer"></span>
       <button class="btn" data-act="exp-share" data-v="png" disabled>Picture</button><button class="btn primary" data-act="exp-share" data-v="pdf" disabled>PDF</button></div>`);
-  const pages = personal ? await drawPersonalPages(k) : [await drawMonthPage(k)];
+  const pages = personal ? await drawPersonalPages(k) : offices ? await drawOfficePages(k) : [await drawMonthPage(k)];
   const blobs = await Promise.all(pages.map(cv => new Promise(r => cv.toBlob(r, 'image/jpeg', .9))));
   const jpegs = await Promise.all(blobs.map(async (bl, i) => ({ bytes: new Uint8Array(await bl.arrayBuffer()), w: pages[i].width, h: pages[i].height })));
-  EXP.pdf = new File([personal ? jpegToPdf(jpegs, 595, 842) : jpegToPdf(jpegs, 842, 595)], base + '.pdf', { type: 'application/pdf' });
+  EXP.pdf = new File([personal || offices ? jpegToPdf(jpegs, 595, 842) : jpegToPdf(jpegs, 842, 595)], base + '.pdf', { type: 'application/pdf' });
   EXP.png = blobs.map((bl, i) => new File([bl], base + (blobs.length > 1 ? `-page${i + 1}` : '') + '.jpg', { type: 'image/jpeg' }));
   const sh = $('.sheet'); if (!sh) return;
   (EXP.urls || []).forEach(u => URL.revokeObjectURL(u)); EXP.urls = blobs.map(bl => URL.createObjectURL(bl));
-  $('.exp-prev', sh).innerHTML = EXP.urls.map((u, i) => `<img src="${u}" alt="${personal ? 'Personal account' : 'Mass account'} for ${esc(monthName(k))}${EXP.urls.length > 1 ? `, page ${i + 1}` : ''}">`).join('');
+  $('.exp-prev', sh).innerHTML = EXP.urls.map((u, i) => `<img src="${u}" alt="${personal ? 'Personal account' : offices ? 'Office for the dead' : 'Mass account'} for ${esc(monthName(k))}${EXP.urls.length > 1 ? `, page ${i + 1}` : ''}">`).join('');
   sh.querySelectorAll('[data-act="exp-share"]').forEach(b => b.disabled = false);
 }
 async function shareExport(kind) {
@@ -1054,6 +1151,65 @@ async function drawPersonalPages(k) {
     txt(made, W - P, H - 50, sans(400, 20), SOFT, 'right');
     if (pages.length > 1) txt(`Page ${i + 1} of ${pages.length}`, P, H - 50, sans(400, 20), SOFT);
   });
+  return pages;
+}
+
+// Office for the dead statement: totals with shares, then every office received or prayed in the month.
+async function drawOfficePages(k) {
+  const W = 1654, H = 2339, P = 100;
+  try { await Promise.all(['400 30px "Plus Jakarta Sans"', '600 30px "Plus Jakarta Sans"', '700 54px "Plus Jakarta Sans"'].map(f => document.fonts.load(f))); } catch (_) {}
+  const SAGE = '#376B60', PEACH = '#EEDBC8', INK = '#252B2A', SOFT = '#6E7672', LINE = '#dcd8cf', CLAY = '#8A5A3B', TINT = '#F0EEE8';
+  const sans = (w, sz) => `${w} ${sz}px "Plus Jakarta Sans", system-ui, sans-serif`;
+  const rs = v => '₹' + Math.round(n0(v)).toLocaleString('en-IN');
+  const fd = iso => iso ? new Date(iso + 'T00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '';
+  const tot = officeTotals(k), sh = officeShares(tot), ids = Object.keys(OFFICES);
+  const list = S.offices.filter(o => monthKeyOf(o.recd) === k || (o.done && monthKeyOf(o.done) === k)).sort((a, b) => a.due.localeCompare(b.due) || a.recd.localeCompare(b.recd));
+  const pages = []; let c, y;
+  const txt = (s, x, yy, font, color = INK, align = 'left') => { c.font = font; c.fillStyle = color; c.textAlign = align; c.fillText(s, x, yy); };
+  const fit = (s, w, font) => { c.font = font; if (c.measureText(s).width <= w) return s; while (s.length > 1 && c.measureText(s + '…').width > w) s = s.slice(0, -1); return s + '…'; };
+  const rule = (yy, color = LINE, w = 1.5) => { c.strokeStyle = color; c.lineWidth = w; c.beginPath(); c.moveTo(P, yy); c.lineTo(W - P, yy); c.stroke(); };
+  const heading = s => { txt(s, P, y, sans(700, 32), SAGE); y += 22; rule(y, SAGE, 2.5); y += 12; };
+  const newPage = () => {
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H; pages.push(cv);
+    c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, W, H);
+    c.fillStyle = SAGE; c.fillRect(0, 0, W, 12); c.fillStyle = PEACH; c.fillRect(0, 12, W, 4);
+    txt('Office for the Dead', P, 112, sans(700, 54), SAGE);
+    txt(monthName(k), W - P, 112, sans(700, 46), SAGE, 'right');
+    if (S.settings.priestName) txt(S.settings.priestName, P, 160, sans(500, 30), SOFT);
+    y = 230;
+  };
+  newPage();
+  // Summary table with the shares
+  heading('Month-end account');
+  const who = OFFICES[ids[0]].share.map(x => x[0]);
+  const cols = [['Office', P, 'left'], ['Received', P + 560, 'right'], ['Prayed', P + 760, 'right'], ['Amount', P + 960, 'right'], ...who.map((w, i) => [w, P + 1160 + i * 147, 'right'])];
+  y += 30; cols.forEach(([l, x, al]) => txt(l, x, y, sans(600, 23), SOFT, al)); y += 18; rule(y); y += 46;
+  const line = (label, vals, bold) => { txt(label, P, y, sans(bold ? 700 : 500, 26), bold ? SAGE : INK); vals.forEach((v, i) => txt(String(v), cols[i + 1][1], y, sans(bold ? 700 : 500, 26), bold ? SAGE : INK, 'right')); y += 20; rule(y); y += 46; };
+  for (const id of ids) { const o = OFFICES[id], t = tot[id]; line(o.en, [t.r, t.d, rs(t.r * o.rate), ...o.share.map(([, v]) => rs(v * t.r))]); }
+  line('Total', [ids.reduce((a, id) => a + tot[id].r, 0), ids.reduce((a, id) => a + tot[id].d, 0), rs(ids.reduce((a, id) => a + tot[id].r * OFFICES[id].rate, 0)), ...who.map(w => rs(sh[w]))], true);
+  txt(`Rates: ${ids.map(id => `${OFFICES[id].en} ${rs(OFFICES[id].rate)} (${OFFICES[id].share.map(([w, v]) => `${w} ${v}`).join(', ')})`).join('   ·   ')}`, P, y, sans(400, 21), SOFT);
+  y += 40; txt(`Still to pray at the end of the month: ${S.offices.filter(o => o.recd <= `${k}-31` && (!o.done || o.done > `${k}-31`)).length}`, P, y, sans(500, 24), INK);
+  y += 80;
+  // Every office
+  const cx = { recd: P, who: P + 170, kind: P + 760, due: P + 1050, done: W - P };
+  const tableHead = () => {
+    heading(pages.length > 1 && y < 300 ? 'Offices (continued)' : 'Offices');
+    y += 30; [['Received', cx.recd, 'left'], ['For', cx.who, 'left'], ['Office', cx.kind, 'left'], ['Pray on', cx.due, 'left'], ['Prayed', cx.done, 'right']].forEach(([l, x, al]) => txt(l, x, y, sans(600, 23), SOFT, al));
+    y += 18; rule(y); y += 42;
+  };
+  tableHead();
+  if (!list.length) txt('No offices this month.', P, y, sans(400, 26), SOFT);
+  for (const o of list) {
+    if (y > H - 160) { newPage(); tableHead(); }
+    txt(fd(o.recd), cx.recd, y, sans(500, 25));
+    txt(fit((o.name || '—') + (o.note ? ' · ' + o.note : ''), cx.kind - cx.who - 24, sans(400, 25)), cx.who, y, sans(400, 25));
+    txt(OFFICES[o.kind]?.short || '', cx.kind, y, sans(400, 25), SOFT);
+    txt(fd(o.due), cx.due, y, sans(400, 25));
+    txt(o.done ? fd(o.done) : 'Not yet', cx.done, y, sans(o.done ? 500 : 600, 25), o.done ? SAGE : CLAY, 'right');
+    y += 20; rule(y); y += 40;
+  }
+  const made = `Made with Intentionally on ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+  pages.forEach((cv, i) => { c = cv.getContext('2d'); txt(made, W - P, H - 50, sans(400, 20), SOFT, 'right'); if (pages.length > 1) txt(`Page ${i + 1} of ${pages.length}`, P, H - 50, sans(400, 20), SOFT); });
   return pages;
 }
 
@@ -1530,7 +1686,7 @@ async function installApp() {
 }
 
 /* ---------- Welcome ---------- */
-const isBlankData = () => !Object.keys(S.mass).length && !S.personal.txns.length;
+const isBlankData = () => !Object.keys(S.mass).length && !S.personal.txns.length && !S.offices.length;
 function renderWelcome() {
   const g = canGoogle();
   $('#welcome').innerHTML = `<div class="welcome" role="dialog" aria-modal="true" aria-labelledby="wtitle"><div class="in">
@@ -1588,6 +1744,12 @@ document.addEventListener('click', e => {
     case 'bulk': bulkEditor(); break;
     case 'export-month': exportMonthSheet(); break;
     case 'export-personal': exportMonthSheet('personal'); break;
+    case 'export-offices': exportMonthSheet('offices'); break;
+    case 'office-add': officeEditor(); break;
+    case 'office-edit': officeEditor(v); break;
+    case 'office-save': saveOffice(v); break;
+    case 'office-done': { const o = S.offices.find(x => x.id === v); if (o) { o.done = o.done ? null : todayISO(); save(); render(); if (o.done) toast('Marked done'); } break; }
+    case 'office-del': confirmSheet('Delete this office?', 'It will be removed from your book.', 'Delete', () => { S.offices = S.offices.filter(o => o.id !== v); save(); render(); }); break;
     case 'exp-share': shareExport(v); break;
     case 'txn-def-acct': { const a = $('#tacct')?.value; if (a) { S.settings.defaultAcct = a; save(); render(); $('#tdefacct').hidden = true; toast(`New entries will use ${acctName(a)}`); } break; }
     case 'set-default': { const v2 = $('#firstsel')?.value ?? ''; S.settings.defaultFirst = v2; save(); render(); toast(`New days will start with ${typeById(v2)?.en || 'No Mass'}`); break; }
