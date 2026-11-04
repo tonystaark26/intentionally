@@ -534,7 +534,7 @@ function renderOffices() {
       <button class="ofname" data-act="office-edit" data-v="${o.id}"><div class="who">${esc(o.name || 'Name not given')}</div><div class="k">${OFFICES[o.kind]?.short || ''}${o.due !== today ? ' · ' + dayLabel(o.due) : ''}${o.note ? ' · ' + esc(o.note) : ''}</div></button>
       ${lateBy ? `<span class="pill bad">${lateBy} day${lateBy > 1 ? 's' : ''} late</span>` : o.done ? '<span class="pill good">Done</span>' : o.due === today ? '<span class="pill warn">Today</span>' : ''}</div>`;
   };
-  let h = `<div class="card"><div class="section-h" style="margin:0 0 4px"><h3>Office for the dead</h3><button class="btn small" data-act="office-add">Receive</button></div>`;
+  let h = `<div class="card"><div class="section-h" style="margin:0 0 4px"><h3>Office for the dead</h3><span class="row" style="gap:6px">${S.offices.some(o => !o.done) ? '<button class="btn small" data-act="office-bulk">Mark several</button>' : ''}<button class="btn small" data-act="office-add">Receive</button></span></div>`;
   if (!late.length && !now.length && !next.length) h += `<p class="note" style="margin:6px 0 2px">No offices to pray.</p>`;
   if (late.length) h += `<div class="ofsub">Not done yet</div>` + late.map(row).join('');
   if (now.length) h += `<div class="ofsub">Today</div>` + now.map(row).join('');
@@ -545,7 +545,7 @@ function officeEditor(id) {
   const o = id ? S.offices.find(x => x.id === id) : { kind: 'church', name: '', due: todayISO(), recd: todayISO(), note: '' };
   openSheet(`<h3>${id ? 'Office for the dead' : 'Receive office for the dead'}</h3>
     <div class="seg" role="group" aria-label="Kind" style="margin-top:8px">${Object.entries(OFFICES).map(([k, v]) => `<button type="button" data-okind="${k}" aria-pressed="${o.kind === k}">${v.short} ₹${v.rate}</button>`).join('')}</div>
-    <div class="field"><label for="oname">For</label><input id="oname" value="${esc(o.name)}" placeholder="Name of the departed"></div>
+    <div class="field"><label for="oname">For</label><div id="onames" style="display:grid;gap:8px"><input id="oname" class="oname" value="${esc(o.name)}" placeholder="Name of the departed"></div>${id ? '' : '<button type="button" class="linkbtn" id="oaddname" style="margin:2px 0 0">+ Add another name</button>'}</div>
     <div class="two"><div class="field"><label for="odue">Pray on</label><input id="odue" type="date" value="${o.due}"></div>
       <div class="field"><label for="orecd">Received on</label><input id="orecd" type="date" value="${o.recd}"></div></div>
     <div class="field"><label for="onote">Note</label><input id="onote" value="${esc(o.note || '')}" placeholder="Optional, e.g. family or place"></div>
@@ -554,15 +554,44 @@ function officeEditor(id) {
   sh => {
     sh.dataset.okind = o.kind;
     sh.querySelectorAll('[data-okind]').forEach(b => b.addEventListener('click', () => { sh.dataset.okind = b.dataset.okind; sh.querySelectorAll('[data-okind]').forEach(x => x.setAttribute('aria-pressed', x === b)); }));
+    // Several names received together: one office each, same kind and dates.
+    $('#oaddname', sh)?.addEventListener('click', () => { const i = document.createElement('input'); i.className = 'oname'; i.placeholder = 'Name of the departed'; $('#onames', sh).appendChild(i); i.focus(); });
   });
 }
 function saveOffice(id) {
   const sh = $('.sheet'), old = id && S.offices.find(x => x.id === id);
-  const o = { id: id || uid(), kind: sh.dataset.okind, name: $('#oname', sh).value.trim(), due: $('#odue', sh).value || todayISO(), recd: $('#orecd', sh).value || todayISO(), note: $('#onote', sh).value.trim(), done: null };
-  if (id) o.done = $('#odone', sh).checked ? (old?.done || todayISO()) : null;
-  const i = S.offices.findIndex(x => x.id === o.id);
-  if (i >= 0) S.offices[i] = o; else S.offices.push(o);
-  save(); closeSheet(); render(); toast(id ? 'Saved' : `Office saved for ${dayLabel(o.due).toLowerCase()}`);
+  const base = { kind: sh.dataset.okind, due: $('#odue', sh).value || todayISO(), recd: $('#orecd', sh).value || todayISO(), note: $('#onote', sh).value.trim(), done: null };
+  if (id) {
+    const o = { ...base, id, name: $('#oname', sh).value.trim(), done: $('#odone', sh).checked ? (old?.done || todayISO()) : null };
+    S.offices[S.offices.findIndex(x => x.id === id)] = o;
+    save(); closeSheet(); render(); toast('Saved'); return;
+  }
+  const names = [...sh.querySelectorAll('.oname')].map(i => i.value.trim()).filter(Boolean);
+  if (!names.length) names.push('');
+  for (const name of names) S.offices.push({ ...base, id: uid(), name });
+  save(); closeSheet(); render();
+  toast(`${names.length > 1 ? names.length + ' offices' : 'Office'} saved for ${dayLabel(base.due).toLowerCase()}`);
+}
+// Tick several offices as prayed in one go. Those due today or earlier start ticked.
+function officeBulk() {
+  const today = todayISO(), list = S.offices.filter(o => !o.done).sort((a, b) => a.due.localeCompare(b.due));
+  openSheet(`<h3>Mark several as prayed</h3>
+    <div class="row" style="margin:6px 0 4px"><button type="button" class="btn small" id="ob-all">Select all</button><button type="button" class="btn small" id="ob-none">Clear selection</button></div>
+    <div>${list.map(o => `<label class="ofrow" style="cursor:pointer"><input type="checkbox" class="obk" value="${o.id}" ${o.due <= today ? 'checked' : ''} style="width:22px;height:22px;accent-color:var(--primary)"><span style="min-width:0"><div class="who">${esc(o.name || 'Name not given')}</div><div class="k">${OFFICES[o.kind]?.short || ''} · ${dayLabel(o.due)}${o.note ? ' · ' + esc(o.note) : ''}</div></span><span></span></label>`).join('')}</div>
+    <div class="field" style="margin-top:8px"><label for="obdate">Prayed on</label><input id="obdate" type="date" value="${today}"></div>
+    <div class="actions"><button class="btn" data-act="close">Cancel</button><button class="btn primary" id="ob-save">Mark 0 as prayed</button></div>`,
+  sh => {
+    const sel = () => [...sh.querySelectorAll('.obk:checked')].map(i => i.value);
+    const upd = () => { const n = sel().length, b = $('#ob-save', sh); b.disabled = !n; b.textContent = `Mark ${n} as prayed`; };
+    sh.addEventListener('change', upd); upd();
+    $('#ob-all', sh).addEventListener('click', () => { sh.querySelectorAll('.obk').forEach(i => i.checked = true); upd(); });
+    $('#ob-none', sh).addEventListener('click', () => { sh.querySelectorAll('.obk').forEach(i => i.checked = false); upd(); });
+    $('#ob-save', sh).addEventListener('click', () => {
+      const ids = sel(), when = $('#obdate', sh).value || today;
+      for (const o of S.offices) if (ids.includes(o.id)) o.done = when;
+      save(); closeSheet(); render(); toast(`${ids.length} marked as prayed`);
+    });
+  });
 }
 
 function gregorianSets() {
@@ -1746,6 +1775,7 @@ document.addEventListener('click', e => {
     case 'export-personal': exportMonthSheet('personal'); break;
     case 'export-offices': exportMonthSheet('offices'); break;
     case 'office-add': officeEditor(); break;
+    case 'office-bulk': officeBulk(); break;
     case 'office-edit': officeEditor(v); break;
     case 'office-save': saveOffice(v); break;
     case 'office-done': { const o = S.offices.find(x => x.id === v); if (o) { o.done = o.done ? null : todayISO(); save(); render(); if (o.done) toast('Marked done'); } break; }
