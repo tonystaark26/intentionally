@@ -545,7 +545,7 @@ function officeEditor(id) {
   const o = id ? S.offices.find(x => x.id === id) : { kind: 'church', name: '', due: todayISO(), recd: todayISO(), note: '' };
   openSheet(`<h3>${id ? 'Office for the dead' : 'Receive office for the dead'}</h3>
     <div class="seg" role="group" aria-label="Kind" style="margin-top:8px">${Object.entries(OFFICES).map(([k, v]) => `<button type="button" data-okind="${k}" aria-pressed="${o.kind === k}">${v.short} ₹${v.rate}</button>`).join('')}</div>
-    <div class="field"><label for="oname">For</label><div id="onames" style="display:grid;gap:8px"><input id="oname" class="oname" value="${esc(o.name)}" placeholder="Name of the departed"></div>${id ? '' : '<button type="button" class="linkbtn" id="oaddname" style="margin:2px 0 0">+ Add another name</button>'}</div>
+    <div class="field"><label for="oname">For</label><input id="oname" value="${esc(o.name)}" placeholder="Name of the departed"></div>
     <div class="two"><div class="field"><label for="odue">Pray on</label><input id="odue" type="date" value="${o.due}"></div>
       <div class="field"><label for="orecd">Received on</label><input id="orecd" type="date" value="${o.recd}"></div></div>
     <div class="field"><label for="onote">Note</label><input id="onote" value="${esc(o.note || '')}" placeholder="Optional, e.g. family or place"></div>
@@ -554,8 +554,6 @@ function officeEditor(id) {
   sh => {
     sh.dataset.okind = o.kind;
     sh.querySelectorAll('[data-okind]').forEach(b => b.addEventListener('click', () => { sh.dataset.okind = b.dataset.okind; sh.querySelectorAll('[data-okind]').forEach(x => x.setAttribute('aria-pressed', x === b)); }));
-    // Several names received together: one office each, same kind and dates.
-    $('#oaddname', sh)?.addEventListener('click', () => { const i = document.createElement('input'); i.className = 'oname'; i.placeholder = 'Name of the departed'; $('#onames', sh).appendChild(i); i.focus(); });
   });
 }
 function saveOffice(id) {
@@ -566,11 +564,8 @@ function saveOffice(id) {
     S.offices[S.offices.findIndex(x => x.id === id)] = o;
     save(); closeSheet(); render(); toast('Saved'); return;
   }
-  const names = [...sh.querySelectorAll('.oname')].map(i => i.value.trim()).filter(Boolean);
-  if (!names.length) names.push('');
-  for (const name of names) S.offices.push({ ...base, id: uid(), name });
-  save(); closeSheet(); render();
-  toast(`${names.length > 1 ? names.length + ' offices' : 'Office'} saved for ${dayLabel(base.due).toLowerCase()}`);
+  S.offices.push({ ...base, id: uid(), name: $('#oname', sh).value.trim() });
+  save(); closeSheet(); render(); toast(`Office saved for ${dayLabel(base.due).toLowerCase()}`);
 }
 // Tick several offices as prayed in one go. Those due today or earlier start ticked.
 function officeBulk() {
