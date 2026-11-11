@@ -67,6 +67,9 @@ header.band .brand { flex: 1; min-width: 0 }
 .brand small { display: block; font-weight: 500; font-size: 13px; color: var(--muted); letter-spacing: 0; margin-top: 4px }
 header.band .hold { text-align: left; font-size: 12px; color: var(--muted); line-height: 1.3; background: var(--surface); border: 0; border-radius: 16px; padding: 10px 14px; box-shadow: var(--shadow); max-width: 52%; min-width: 0; display: grid; gap: 2px }
 header.band .hold b { font-size: 15px; font-weight: 700; color: var(--primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.syncbtn { display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; border: 0; background: var(--secondary); color: var(--primary); font-size: 12px; font-weight: 600; border-radius: 999px; padding: 5px 10px 5px 8px; font-family: inherit }
+.syncbtn svg { width: 14px; height: 14px }
+.brand .syncbtn { display: flex; width: max-content }
 header.band .hold .ofd { font-style: normal; font-size: 12.5px; font-weight: 600; color: var(--clay); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 header.band .hold em { font-style: normal; font-size: 13px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 
@@ -478,7 +481,70 @@ function migrate(s) {
   s.meta = { ...b.meta, ...(s.meta || {}) };
   return s;
 }
+/* ---------- Change stamps for syncing between devices ----------
+   Every record (a day, a month's opening/handed over, a transaction, an account, an office, the settings) gets a time "t"
+   when it changes, and a removed record leaves its key in S.tomb. Two copies can then be merged record by record. */
+function recordsOf(st) {
+  const m = new Map();
+  for (const [k, M] of Object.entries(st.mass || {})) {
+    m.set(`m:${k}`, M);
+    for (const [d, e] of Object.entries(M.days || {})) m.set(`d:${k}:${d}`, e);
+  }
+  for (const x of st.personal?.txns || []) m.set(`x:${x.id}`, x);
+  for (const a of st.personal?.accounts || []) m.set(`a:${a.id}`, a);
+  for (const o of st.offices || []) m.set(`o:${o.id}`, o);
+  if (st.settings) m.set('s', st.settings);
+  m.set('pc', st.personal?.cats || {});
+  return m;
+}
+const bodyOf = (key, o) => JSON.stringify(o, (k2, v) => (k2 === 't' || (key[0] === 'm' && k2 === 'days')) ? undefined : v);
+let SNAP = null, SNAP_OF = null;
+function snapshot() { SNAP = new Map([...recordsOf(S)].map(([k, o]) => [k, bodyOf(k, o)])); SNAP_OF = S; }
+function stampChanges() {
+  // A whole new state (examples, a restore, a merge) starts a fresh snapshot instead of counting as changes.
+  if (SNAP_OF !== S || !SNAP) return snapshot();
+  const now = Date.now(), cur = recordsOf(S);
+  S.tomb ||= {};
+  for (const [k, o] of cur) {
+    const b = bodyOf(k, o);
+    if (SNAP.get(k) !== b) { if (k === 'pc') { S.personal.cats ||= {}; S.personal.cats.t = now; } else o.t = now; delete S.tomb[k]; }
+  }
+  for (const k of SNAP.keys()) if (!cur.has(k)) S.tomb[k] = now;
+  snapshot();
+}
+// Merge two copies: for each record keep the newer one, and drop records removed later on either device.
+function mergeStates(a, b) {
+  const newer = (new Date(a.meta?.updatedAt || 0) >= new Date(b.meta?.updatedAt || 0)) ? a : b;
+  const tomb = { ...(b.tomb || {}) };
+  for (const [k, v] of Object.entries(a.tomb || {})) tomb[k] = Math.max(v, tomb[k] || 0);
+  const ra = recordsOf(a), rb = recordsOf(b), pick = new Map();
+  for (const k of new Set([...ra.keys(), ...rb.keys()])) {
+    const x = ra.get(k), y = rb.get(k);
+    let r = !x ? y : !y ? x : (n0(x.t) > n0(y.t) ? x : n0(y.t) > n0(x.t) ? y : (newer === a ? x : y));
+    if (tomb[k] && tomb[k] >= n0(r?.t)) continue;
+    pick.set(k, r);
+  }
+  const out = migrate(JSON.parse(JSON.stringify(newer)));
+  out.mass = {}; out.personal.txns = []; out.personal.accounts = []; out.offices = []; out.tomb = tomb;
+  for (const [k, r] of pick) {
+    const c = JSON.parse(JSON.stringify(r));
+    if (k === 's') out.settings = { ...out.settings, ...c };
+    else if (k === 'pc') out.personal.cats = c;
+    else if (k[0] === 'm') { const mk = k.slice(2); out.mass[mk] = { ...c, days: out.mass[mk]?.days || {} }; }
+    else if (k[0] === 'd') { const [, mk, d] = k.split(':'); (out.mass[mk] ||= { days: {} }).days ||= {}; out.mass[mk].days[d] = c; }
+    else if (k[0] === 'x') out.personal.txns.push(c);
+    else if (k[0] === 'a') out.personal.accounts.push(c);
+    else if (k[0] === 'o') out.offices.push(c);
+  }
+  // Keep transactions in the order they were first entered on either device.
+  const order = new Map([...(b.personal?.txns || []), ...(a.personal?.txns || [])].map((x, i) => [x.id, i]));
+  out.personal.txns.sort((p, q) => n0(order.get(p.id)) - n0(order.get(q.id)));
+  out.meta.updatedAt = [a.meta?.updatedAt, b.meta?.updatedAt].filter(Boolean).sort().pop() || new Date().toISOString();
+  return out;
+}
+
 function save() {
+  stampChanges();
   S.meta.updatedAt = new Date().toISOString();
   try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { toast('Could not save on this device. Storage may be full or blocked.'); }
   queueDriveBackup();
@@ -727,7 +793,7 @@ function render() {
   const ofToday = officesDue(tISO);
   if (tg) { tName = tg.set.carried ? `Gregorian · ${tg.need - tg.day + 1} left` : `Gregorian · day ${tg.day} of ${tg.need}`; tRem = tg.rem || tRem; }
   $('#band').innerHTML = `<div class="in">
-    <div class="brand">Intentionally<small>Mass book · Personal accounts</small></div>
+    <div class="brand">Intentionally<small>Mass book · Personal accounts</small>${S.meta.driveLinked && canGoogle() ? `<button class="syncbtn" data-act="g-backup" aria-label="Sync with Google Drive"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 0 1-14.3 4.9M4 12A8 8 0 0 1 18.3 7.1"/><path d="M18.5 3v4.2h-4.2M5.5 21v-4.2h4.2"/></svg>${syncLabel()}</button>` : ''}</div>
     ${ui.tab === 'mass' ? `<button class="hold" data-act="day-today" aria-label="Go to today's entry"><span>Today's intention</span><b>${tName ? esc(tName) : 'Not marked yet'}</b>${tRem ? `<em>${esc(tRem)}</em>` : ''}${ofToday.length ? `<span class="ofd">Office for the dead: ${ofToday.length}</span>` : ''}</button>` : ''}</div>`;
   let html = '';
   if (S.meta.example) html += `<div class="banner"><span>These are example entries so you can see how the app works.</span><button class="btn small" data-act="clear-examples">Clear examples and start</button></div>`;
@@ -756,7 +822,7 @@ function renderMass() {
   let h = `<div class="stack">`;
   if (pending > limit) h += `<div class="banner"><span>You are holding <b>${pending}</b> intentions. Only ${limit} should be kept at a time. Hand over the extra ${pending - limit}.</span><button class="btn small" data-act="edit-handed">Hand over</button></div>`;
 
-  if (driveDue()) h += `<div class="banner"><span>Your last Google Drive backup was ${S.meta.lastDriveBackup ? new Date(S.meta.lastDriveBackup).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'never'}.</span><button class="btn small" data-act="g-backup">Back up now</button></div>`;
+  if (driveDue()) h += `<div class="banner"><span>Last synced with Google Drive ${S.meta.lastDriveBackup ? new Date(S.meta.lastDriveBackup).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'never'}.</span><button class="btn small" data-act="g-backup">Sync now</button></div>`;
   if (showInstall() && !S.meta.installHidden) h += `<div class="banner"><span>Put Intentionally on your home screen so it opens like an app, even without internet.</span><span class="row" style="gap:6px"><button class="btn small" data-act="install-hide">Later</button><button class="btn small primary" data-act="install">Install</button></span></div>`;
   if (!S.meta.example && !S.meta.startDone && !Object.values(S.mass).some(M => M.opening?.manual))
     h += `<div class="card"><h3 style="margin:0 0 4px;font-size:17px">Already holding intentions?</h3><p class="note" style="margin:0 0 12px">If you have intentions with you from before, enter how many of each kind and start from there. No need to enter past months.</p><div class="row"><button class="btn primary" data-act="start-balance">Enter my balance</button><button class="btn" data-act="start-none">I have none</button></div></div>`;
@@ -1326,14 +1392,14 @@ function renderSettings() {
   </div>`;
 
   h += `<div class="section-h"><h3>Google Drive</h3></div><div class="card">
-    <p class="note" style="margin-top:0">Optional. Sign in with Google to keep a backup copy in a private app folder on your own Google Drive. Nobody else can see it.</p>`;
+    <p class="note" style="margin-top:0">Sign in with the same Google account on your phone and tablet to keep the same entries on both. The copy is kept in a private app folder on your own Google Drive.</p>`;
   if (inArtifact) h += `<p class="note"><b>Works in the installed app.</b> This preview cannot reach Google.</p>`;
   else if (!cid) h += `<p class="note">Google sign-in is not set up yet. Add a Google OAuth Client ID below.</p>
       <div class="field"><label for="gcid">Google OAuth Client ID</label><input id="gcid" data-act="gcid" placeholder="xxxx.apps.googleusercontent.com" value="${esc(S.settings.gClientId)}"></div>`;
   h += `<div class="row" style="margin-top:10px">
-      <button class="btn primary" data-act="g-backup" ${inArtifact || !cid ? 'disabled' : ''}>Back up to Drive</button>
+      <button class="btn primary" data-act="g-backup" ${inArtifact || !cid ? 'disabled' : ''}>Sync now</button>
       <button class="btn" data-act="g-restore" ${inArtifact || !cid ? 'disabled' : ''}>Restore from Drive</button></div>
-    <p class="note">${S.meta.driveEmail ? `Signed in as ${esc(S.meta.driveEmail)}. ` : ''}${S.meta.lastDriveBackup ? `Last Drive backup: ${new Date(S.meta.lastDriveBackup).toLocaleString('en-IN')}` : 'No Drive backup yet.'}</p>
+    <p class="note">${S.meta.driveEmail ? `Signed in as ${esc(S.meta.driveEmail)}. ` : ''}${S.meta.lastDriveBackup ? `Last synced: ${new Date(S.meta.lastDriveBackup).toLocaleString('en-IN')}` : 'Not synced yet.'}</p>
   </div>`;
 
   h += `<div class="section-h"><h3>Data</h3></div><div class="card">
@@ -1656,7 +1722,8 @@ async function gFind() {
 async function gWhoAmI() {
   try { const r = await gfetch('https://www.googleapis.com/oauth2/v3/userinfo'); S.meta.driveEmail = (await r.json()).email || null; } catch (e) {}
 }
-async function gBackup(quiet) {
+async function gBackup(quiet) { return gSync(quiet); }
+async function gBackupOnly(quiet) {
   try {
     if (!quiet) toast('Backing up to Google Drive…');
     const f = await gFind();
@@ -1672,6 +1739,41 @@ async function gBackup(quiet) {
     if (!quiet) { render(); toast('Backed up to Google Drive'); }
   } catch (e) { if (!quiet) toast(e.message); }
 }
+// Sync: fetch the Drive copy, merge it with this device record by record, keep the result here and send it back to Drive.
+// Used by every "Back up"/"Sync" action and after each change while Google sign-in is fresh, so a phone and a tablet signed in
+// with the same Google account end up with the same entries.
+let syncing = null;
+function gSync(quiet) {
+  if (syncing) return syncing;
+  syncing = (async () => {
+    try {
+      if (!quiet) toast('Syncing with Google Drive…');
+      const f = await gFind();
+      let merged = S;
+      if (f) {
+        const remote = migrate(await (await gfetch(`https://www.googleapis.com/drive/v3/files/${f.id}?alt=media`)).json());
+        // Example entries on this device are never mixed into the real book.
+        merged = (S.meta.example || isBlankData()) ? remote : mergeStates(S, remote);
+        const keep = { driveEmail: S.meta.driveEmail, installHidden: S.meta.installHidden };
+        merged.meta = { ...merged.meta, ...keep, example: false, welcomed: true, driveLinked: true, startDone: merged.meta.startDone || S.meta.startDone };
+      }
+      const body = new FormData();
+      body.append('metadata', new Blob([JSON.stringify(f ? { name: BACKUP_NAME } : { name: BACKUP_NAME, parents: ['appDataFolder'] })], { type: 'application/json' }));
+      body.append('file', new Blob([JSON.stringify(merged)], { type: 'application/json' }));
+      await gfetch(f ? `https://www.googleapis.com/upload/drive/v3/files/${f.id}?uploadType=multipart` : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', { method: f ? 'PATCH' : 'POST', body });
+      if (!S.meta.driveEmail) await gWhoAmI();
+      const email = S.meta.driveEmail;
+      S = merged; S.meta.driveLinked = true; S.meta.driveEmail = email || S.meta.driveEmail; S.meta.lastDriveBackup = new Date().toISOString();
+      snapshot();
+      try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (_) {}
+      if (!$('.sheet')) render();
+      if (!quiet) toast('Synced with Google Drive');
+      return true;
+    } catch (e) { if (!quiet) toast(e.message); return false; }
+    finally { syncing = null; }
+  })();
+  return syncing;
+}
 async function gRestore() {
   try {
     const f = await gFind();
@@ -1681,6 +1783,11 @@ async function gRestore() {
   } catch (e) { toast(e.message); }
 }
 
+const syncLabel = () => {
+  const t = S.meta.lastDriveBackup; if (!t) return 'Sync';
+  const min = Math.round((Date.now() - new Date(t)) / 60000);
+  return min < 1 ? 'Synced just now' : min < 60 ? `Synced ${min} min ago` : `Sync · last ${new Date(t).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`;
+};
 const gCid = () => GOOGLE_CLIENT_ID || S.settings.gClientId;
 const canGoogle = () => !!gCid() && /^https?:$/.test(location.protocol) && !/claude\.ai|claudeusercontent|anthropic/.test(location.hostname);
 // Once linked, a copy goes to Drive a little while after each change, whenever Google sign-in is still fresh.
@@ -1689,8 +1796,11 @@ let driveTimer;
 function queueDriveBackup() {
   if (!S.meta.driveLinked || !canGoogle()) return;
   clearTimeout(driveTimer);
-  driveTimer = setTimeout(() => { if (GD.token && Date.now() < GD.exp) gBackup(true); }, 15000);
+  driveTimer = setTimeout(() => { if (GD.token && Date.now() < GD.exp) gSync(true); }, 8000);
 }
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && S?.meta.driveLinked && canGoogle() && GD.token && Date.now() < GD.exp) gSync(true);
+});
 const driveDue = () => S.meta.driveLinked && canGoogle() && (!S.meta.lastDriveBackup || new Date(S.meta.updatedAt) - new Date(S.meta.lastDriveBackup) > 60000)
   && Date.now() - new Date(S.meta.lastDriveBackup || 0) > 2 * 86400000;
 
@@ -1746,13 +1856,10 @@ async function welcomeGoogle(btn) {
   btn.disabled = true;
   try {
     await gToken(); await gWhoAmI();
-    const f = await gFind();
     S.meta.driveLinked = true;
     finishWelcome();
-    if (f) {
-      const r = await gfetch(`https://www.googleapis.com/drive/v3/files/${f.id}?alt=media`);
-      importBackup(await r.text());
-    } else gBackup();
+    // A second phone or tablet picks up everything already saved under this Google account.
+    gSync();
   } catch (e) { btn.disabled = false; toast(e.message); }
 }
 
