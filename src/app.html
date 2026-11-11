@@ -175,6 +175,11 @@ nav.tabs button[aria-current="page"] svg { background: var(--secondary) }
 .tick svg { width: 16px; height: 16px }
 .ofrow.done .tick { background: var(--primary); border-color: var(--primary); color: #fff }
 .ofsub { font-size: 12px; font-weight: 600; color: var(--muted); padding: 10px 0 0; text-transform: uppercase; letter-spacing: .04em }
+.mpages { display: flex; width: 100% } .mpages button { flex: 1; padding: 9px 0; font-size: 15px }
+.mpages .badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-left: 6px; padding: 0 5px; border-radius: 999px; background: var(--clay); color: #fff; font-size: 11px; font-weight: 700; vertical-align: 1px }
+.gline { display: grid; grid-template-columns: 1fr auto; gap: 8px 10px; align-items: center; width: 100%; text-align: left; border: 0; font: inherit; color: inherit; padding: 14px 18px }
+.gline .bar { grid-column: 1 / -1; height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden }
+.gline .bar span { display: block; height: 100%; background: var(--primary); border-radius: 3px }
 .pill { font-size: 12px; padding: 3px 10px; border-radius: 999px; background: var(--surface-2); color: var(--ink); white-space: nowrap; font-weight: 500 }
 .pill.warn { background: var(--peach); color: var(--clay) }
 .pill.good { background: var(--secondary); color: var(--primary) }
@@ -379,7 +384,7 @@ const ml = s => `<span class="ml">${esc(s)}</span>`;
 
 /* ---------- State ---------- */
 let S;
-const ui = { tab: 'mass', day: todayISO(), month: monthKeyOf(todayISO()), massView: 'days', pMonth: monthKeyOf(todayISO()) };
+const ui = { mpage: 'today', tab: 'mass', day: todayISO(), month: monthKeyOf(todayISO()), massView: 'days', pMonth: monthKeyOf(todayISO()) };
 
 function blank() {
   return {
@@ -589,23 +594,46 @@ const dayLabel = iso => {
   const n = Math.round((new Date(iso + 'T00:00') - new Date(todayISO() + 'T00:00')) / 86400000);
   return n === 0 ? 'Today' : n === 1 ? 'Tomorrow' : n === -1 ? 'Yesterday' : new Date(iso + 'T00:00').toLocaleDateString('en-IN', { weekday: n > 0 && n < 7 ? 'short' : undefined, day: 'numeric', month: 'short' });
 };
-function renderOffices() {
+function renderOffices(compact) {
   const today = todayISO();
   const late = S.offices.filter(o => !o.done && o.due < today).sort((a, b) => a.due.localeCompare(b.due));
   const now = S.offices.filter(o => o.due === today || (o.done === today && o.due < today)).sort((a, b) => !!a.done - !!b.done);
-  const next = S.offices.filter(o => !o.done && o.due > today).sort((a, b) => a.due.localeCompare(b.due));
+  const next = compact ? [] : S.offices.filter(o => !o.done && o.due > today).sort((a, b) => a.due.localeCompare(b.due));
+  // On the Today page only what is due shows; nothing at all when nothing is due.
+  if (compact && !late.length && !now.some(o => !o.done)) return '';
   const row = o => {
     const d = o.done ? 'done' : '', lateBy = !o.done && o.due < today ? Math.round((new Date(today + 'T00:00') - new Date(o.due + 'T00:00')) / 86400000) : 0;
     return `<div class="ofrow ${d}"><button class="tick" data-act="office-done" data-v="${o.id}" aria-pressed="${!!o.done}" aria-label="${o.done ? 'Mark not done' : 'Mark done'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
       <button class="ofname" data-act="office-edit" data-v="${o.id}"><div class="who">${esc(o.name || 'Name not given')}</div><div class="k">${OFFICES[o.kind]?.short || ''}${o.due !== today ? ' · ' + dayLabel(o.due) : ''}${o.note ? ' · ' + esc(o.note) : ''}</div></button>
       ${lateBy ? `<span class="pill bad">${lateBy} day${lateBy > 1 ? 's' : ''} late</span>` : o.done ? '<span class="pill good">Done</span>' : o.due === today ? '<span class="pill warn">Today</span>' : ''}</div>`;
   };
-  let h = `<div class="card"><div class="section-h" style="margin:0 0 4px"><h3>Office for the dead</h3><span class="row" style="gap:6px">${S.offices.some(o => !o.done) ? '<button class="btn small" data-act="office-bulk">Mark several</button>' : ''}<button class="btn small" data-act="office-add">Receive</button></span></div>`;
+  // On the Today page the card only lists what is due; the buttons live on the Offices page.
+  let h = compact ? `<div class="card"><div class="section-h" style="margin:0 0 4px"><h3>Office for the dead</h3></div>`
+    : `<div class="row" style="justify-content:flex-end;gap:8px">${S.offices.some(o => !o.done) ? '<button class="btn small" data-act="office-bulk">Mark several</button>' : ''}<button class="btn small primary" data-act="office-add">Receive</button></div><div class="card">`;
   if (!late.length && !now.length && !next.length) h += `<p class="note" style="margin:6px 0 2px">No offices to pray.</p>`;
   if (late.length) h += `<div class="ofsub">Not done yet</div>` + late.map(row).join('');
   if (now.length) h += `<div class="ofsub">Today</div>` + now.map(row).join('');
   if (next.length) h += `<div class="ofsub">Coming up</div>` + next.slice(0, 6).map(row).join('') + (next.length > 6 ? `<p class="note" style="margin:6px 0 0">and ${next.length - 6} more</p>` : '');
+  if (compact) h += `<button class="linkbtn" data-act="mpage" data-v="offices" style="margin:8px 0 0">All offices ›</button>`;
   return h + `</div>`;
+}
+function renderOfficesPage(k) {
+  const [y, m] = k.split('-').map(Number);
+  let h = renderOffices();
+  h += `<div class="monthbar" style="margin:4px 0 0">
+    <button class="iconbtn" data-act="month" data-v="-1" aria-label="Previous month">‹</button>
+    <h2>${esc(monthName(k))}</h2>
+    <button class="iconbtn" data-act="month" data-v="1" aria-label="Next month">›</button></div>`;
+  // Office for the dead: counts and money for the month, with each person's share.
+  const ot = officeTotals(k), osh = officeShares(ot), oAmt = Object.keys(OFFICES).reduce((a, id) => a + ot[id].r * OFFICES[id].rate, 0);
+  h += `    <div class="card scroll"><table class="sumtable num"><thead><tr><th>Office</th><th>Received</th><th>Prayed</th><th>Amount</th></tr></thead><tbody>
+    ${Object.entries(OFFICES).map(([id, v]) => `<tr><td>${v.en}</td><td>${ot[id].r}</td><td>${ot[id].d}</td><td>${money(ot[id].r * v.rate)}</td></tr>`).join('')}
+    <tr><td><b>Total</b></td><td><b>${Object.values(ot).reduce((a, x) => a + x.r, 0)}</b></td><td><b>${Object.values(ot).reduce((a, x) => a + x.d, 0)}</b></td><td><b>${money(oAmt)}</b></td></tr>
+    <tr><td colspan="4" class="note" style="text-align:left;padding-top:10px">Shares: ${Object.entries(osh).map(([w, v]) => `${w} <b>${money(v)}</b>`).join(' · ')}</td></tr>
+    <tr><td colspan="4" class="note" style="text-align:left">Still to pray: <b>${S.offices.filter(o => !o.done).length}</b></td></tr>
+    </tbody></table></div>
+    <div class="row"><span class="spacer"></span><button class="btn small primary" data-act="export-offices">Export offices</button></div>`;
+  return h;
 }
 function officeEditor(id) {
   const o = id ? S.offices.find(x => x.id === id) : { kind: 'church', name: '', due: todayISO(), recd: todayISO(), note: '' };
@@ -692,13 +720,21 @@ function gregFor(iso) {
   // A set carried in from the opening balance has no start date, so it is counted as Masses left rather than day N of 30.
   return { set: st, rem: st.rem, day, need: st.need, label: st.carried ? `${st.need - day + 1} Gregorian Masses left` : `Day ${day} of ${st.need}` };
 }
-function renderGregorians() {
+function renderGregorians(compact) {
   if (!typeById(GREGORIAN)) return '';
   const today = new Date(todayISO() + 'T00:00');
   // Show every unfinished set, and sets finished in the last 30 days so the priest can see them close.
   const sets = gregorianSets().filter(st => !st.done || (today - new Date(st.done + 'T00:00')) / 86400000 <= 30);
   if (!sets.length) return '';
   const fmt = dt => dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  if (compact) {
+    const open = sets.filter(st => !st.done); if (!open.length) return '';
+    return open.map(st => {
+      const due = new Date(st.date + 'T00:00'); due.setDate(due.getDate() + GREG_DAYS);
+      const left = Math.round((due - today) / 86400000);
+      return `<button class="card gline" data-act="mpage" data-v="month"><span><b>Gregorian</b> · ${st.said} of ${st.need} said</span><span class="pill ${st.carried ? '' : left < 0 ? 'bad' : left <= 7 ? 'warn' : ''}">${st.carried ? 'carried over' : left < 0 ? `${-left} days overdue` : `${left} days left`}</span><span class="bar"><span style="width:${st.said / st.need * 100}%"></span></span></button>`;
+    }).join('');
+  }
   return `<div class="card"><div class="section-h" style="margin:0 0 6px"><h3>Gregorian Masses</h3></div>${sets.map(st => {
     let head, state;
     if (st.carried) {
@@ -809,18 +845,31 @@ function renderMass() {
   const pending = sumObj(closingFrom(openingOf(monthKeyOf(todayISO())), monthTotals(monthKeyOf(todayISO()))));
   const limit = n0(S.settings.holdLimit) || 100;
   let h = `<div class="stack">`;
-  if (pending > limit) h += `<div class="banner"><span>You are holding <b>${pending}</b> intentions. Only ${limit} should be kept at a time. Hand over the extra ${pending - limit}.</span><button class="btn small" data-act="edit-handed">Hand over</button></div>`;
+  // Option A (user, 2026-11-11): the Mass book is split into Today / Month / Offices so a newcomer sees one thing at a time.
+  // The older single long page is kept as the "default page" (git branch default-page).
+  const ofDue = officesDue(todayISO()).length;
+  h += `<div class="seg mpages" role="group" aria-label="Mass book pages">${[['today', 'Today'], ['month', 'Month'], ['offices', 'Offices']].map(([v, l]) =>
+    `<button data-act="mpage" data-v="${v}" aria-pressed="${ui.mpage === v}">${l}${v === 'offices' && ofDue ? `<span class="badge">${ofDue}</span>` : ''}</button>`).join('')}</div>`;
+  // Only one notice at a time, most important first.
+  const notices = [];
+  if (pending > limit) notices.push(`<div class="banner"><span>You are holding <b>${pending}</b> intentions. Only ${limit} should be kept at a time. Hand over the extra ${pending - limit}.</span><button class="btn small" data-act="edit-handed">Hand over</button></div>`);
 
-  if (driveDue()) h += `<div class="banner"><span>Last synced with Google Drive ${S.meta.lastDriveBackup ? new Date(S.meta.lastDriveBackup).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'never'}.</span><button class="btn small" data-act="g-backup">Sync now</button></div>`;
-  if (showInstall() && !S.meta.installHidden) h += `<div class="banner"><span>Put Intentionally on your home screen so it opens like an app, even without internet.</span><span class="row" style="gap:6px"><button class="btn small" data-act="install-hide">Later</button><button class="btn small primary" data-act="install">Install</button></span></div>`;
-  if (!S.meta.example && !S.meta.startDone && !Object.values(S.mass).some(M => M.opening?.manual))
-    h += `<div class="card"><h3 style="margin:0 0 4px;font-size:17px">Already holding intentions?</h3><p class="note" style="margin:0 0 12px">If you have intentions with you from before, enter how many of each kind and start from there. No need to enter past months.</p><div class="row"><button class="btn primary" data-act="start-balance">Enter my balance</button><button class="btn" data-act="start-none">I have none</button></div></div>`;
-  h += renderEntry(pending);
-  h += renderOffices();
+  if (driveDue()) notices.push(`<div class="banner"><span>Last synced with Google Drive ${S.meta.lastDriveBackup ? new Date(S.meta.lastDriveBackup).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'never'}.</span><button class="btn small" data-act="g-backup">Sync now</button></div>`);
+  if (showInstall() && !S.meta.installHidden) notices.push(`<div class="banner"><span>Put Intentionally on your home screen so it opens like an app, even without internet.</span><span class="row" style="gap:6px"><button class="btn small" data-act="install-hide">Later</button><button class="btn small primary" data-act="install">Install</button></span></div>`);
+  if (!S.meta.example && notices.length) h += notices[0];
+  if (ui.mpage === 'offices') return h + renderOfficesPage(k) + `</div>`;
+  if (ui.mpage === 'today') {
+    if (!S.meta.example && !S.meta.startDone && !Object.values(S.mass).some(M => M.opening?.manual))
+      h += `<div class="card"><h3 style="margin:0 0 4px;font-size:17px">Already holding intentions?</h3><p class="note" style="margin:0 0 12px">If you have intentions with you from before, enter how many of each kind and start from there. No need to enter past months.</p><div class="row"><button class="btn primary" data-act="start-balance">Enter my balance</button><button class="btn" data-act="start-none">I have none</button></div></div>`;
+    h += renderEntry(pending);
+    h += renderOffices(true);
+    h += renderGregorians(true);
+    return h + `</div>`;
+  }
+
   h += renderGregorians();
-
   // This month's days
-  h += `<div class="monthbar" style="margin:10px 0 0">
+  h += `<div class="monthbar" style="margin:4px 0 0">
     <button class="iconbtn" data-act="month" data-v="-1" aria-label="Previous month">‹</button>
     <h2>${esc(monthName(k))}<span class="ml">${ML.month}: ${ML_MONTHS[m - 1]} · ${ML.year}: ${y}</span></h2>
     <button class="iconbtn" data-act="month" data-v="1" aria-label="Next month">›</button></div>
@@ -851,16 +900,7 @@ function renderMass() {
   }
   h += `</tbody></table></div>
     <div class="row"><button class="btn small" data-act="edit-opening">Opening balance</button><button class="btn small" data-act="edit-handed">Handed over</button><span class="spacer"></span><button class="btn small primary" data-act="export-month">Export month</button></div>`;
-  // Office for the dead: counts and money for the month, with each person's share.
-  const ot = officeTotals(k), osh = officeShares(ot), oAmt = Object.keys(OFFICES).reduce((a, id) => a + ot[id].r * OFFICES[id].rate, 0);
-  h += `<div class="section-h" style="margin-top:12px"><h3>Office for the dead · ${esc(monthName(k))}</h3></div>
-    <div class="card scroll"><table class="sumtable num"><thead><tr><th>Office</th><th>Received</th><th>Prayed</th><th>Amount</th></tr></thead><tbody>
-    ${Object.entries(OFFICES).map(([id, v]) => `<tr><td>${v.en}</td><td>${ot[id].r}</td><td>${ot[id].d}</td><td>${money(ot[id].r * v.rate)}</td></tr>`).join('')}
-    <tr><td><b>Total</b></td><td><b>${Object.values(ot).reduce((a, x) => a + x.r, 0)}</b></td><td><b>${Object.values(ot).reduce((a, x) => a + x.d, 0)}</b></td><td><b>${money(oAmt)}</b></td></tr>
-    <tr><td colspan="4" class="note" style="text-align:left;padding-top:10px">Shares: ${Object.entries(osh).map(([w, v]) => `${w} <b>${money(v)}</b>`).join(' · ')}</td></tr>
-    <tr><td colspan="4" class="note" style="text-align:left">Still to pray: <b>${S.offices.filter(o => !o.done).length}</b></td></tr>
-    </tbody></table></div>
-    <div class="row"><span class="spacer"></span><button class="btn small primary" data-act="export-offices">Export offices</button></div>`;
+
   h += `</div>`;
   return h;
 }
@@ -1868,9 +1908,10 @@ document.addEventListener('click', e => {
     case 'month': ui.month = shiftMonth(ui.month, Number(v)); render(); break;
     case 'pmonth': ui.pMonth = shiftMonth(ui.pMonth, Number(v)); render(); break;
     case 'mview': ui.massView = v; try { localStorage.setItem('intentionally.view', v); } catch (_) {} render(); break;
-    case 'edit-day': ui.day = `${ui.month}-${pad(Number(v))}`; render(); scrollTo({ top: 0, behavior: 'smooth' }); break;
+    case 'edit-day': ui.day = `${ui.month}-${pad(Number(v))}`; ui.mpage = 'today'; render(); scrollTo({ top: 0, behavior: 'smooth' }); break;
+    case 'mpage': ui.mpage = v; if (v === 'today') { ui.day = todayISO(); } render(); scrollTo(0, 0); break;
     case 'day-shift': { const dt = new Date(ui.day + 'T00:00'); dt.setDate(dt.getDate() + Number(v)); ui.day = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`; ui.month = monthKeyOf(ui.day); render(); break; }
-    case 'day-today': ui.day = todayISO(); ui.month = monthKeyOf(ui.day); render(); scrollTo({ top: 0, behavior: 'smooth' }); break;
+    case 'day-today': ui.day = todayISO(); ui.month = monthKeyOf(ui.day); ui.mpage = 'today'; render(); scrollTo({ top: 0, behavior: 'smooth' }); break;
     case 'day-save': saveDay(); break;
     case 'bulk': bulkEditor(); break;
     case 'export-month': exportMonthSheet(); break;
@@ -1894,7 +1935,7 @@ document.addEventListener('click', e => {
     case 'start-none': S.meta.startDone = true; save(); render(); toast('You can set it later under Month-end account > Opening balance.'); break;
     case 'opening-auto': { delete monthData(ui.month).opening; save(); closeSheet(); render(); toast('Opening balance now carries forward'); break; }
     case 'add-txn': txnEditor(); break;
-    case 'fab-mass': ui.day = todayISO(); ui.month = monthKeyOf(ui.day); render(); scrollTo({ top: 0, behavior: 'smooth' }); break;
+    case 'fab-mass': ui.day = todayISO(); ui.month = monthKeyOf(ui.day); ui.mpage = 'today'; render(); scrollTo({ top: 0, behavior: 'smooth' }); break;
     case 'edit-txn': txnEditor(v); break;
     case 'txn-save': saveTxn(v); break;
     case 'txn-del': confirmSheet('Delete this transaction?', 'This cannot be undone.', 'Delete', () => { S.personal.txns = S.personal.txns.filter(t => t.id !== v); save(); render(); toast('Deleted'); }); break;
