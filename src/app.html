@@ -180,6 +180,13 @@ nav.tabs button[aria-current="page"] svg { background: var(--secondary) }
 .gline { display: grid; grid-template-columns: 1fr auto; gap: 8px 10px; align-items: center; width: 100%; text-align: left; border: 0; font: inherit; color: inherit; padding: 14px 18px }
 .gline .bar { grid-column: 1 / -1; height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden }
 .gline .bar span { display: block; height: 100%; background: var(--primary); border-radius: 3px }
+.ints { margin: 8px 0 4px; padding-top: 10px; border-top: 1px solid var(--line) }
+.ints-h { font-size: 14px; font-weight: 600; color: var(--muted) }
+.introw { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line) }
+.introw .note { display: block; font-size: 12.5px }
+.introw .iconbtn { width: 32px; height: 32px; font-size: 13px }
+.intadd { display: grid; grid-template-columns: 1fr 1.2fr auto; gap: 6px; margin-top: 6px }
+.intadd select, .intadd input { border: 1px solid var(--line); border-radius: 12px; padding: 9px 10px; background: var(--surface); min-width: 0; font: inherit; font-size: 14px }
 .pill { font-size: 12px; padding: 3px 10px; border-radius: 999px; background: var(--surface-2); color: var(--ink); white-space: nowrap; font-weight: 500 }
 .pill.warn { background: var(--peach); color: var(--clay) }
 .pill.good { background: var(--secondary); color: var(--primary) }
@@ -813,7 +820,9 @@ function render() {
   const tISO = todayISO(), te = S.mass[monthKeyOf(tISO)]?.days?.[Number(tISO.slice(8))], tFirst = te ? splitOffered(te.o).first : '';
   const tg = (!te || tFirst === GREGORIAN) ? gregFor(tISO) : null;
   let tName = tFirst ? (typeById(tFirst)?.en || tFirst) + (tFirst === FOUNDATION && te.fk ? ` (${typeById(te.fk)?.en.replace(/ Mass$/, '') || te.fk})` : '') : te?.noMass ? 'No Mass' : '';
-  let tRem = te?.rem || '';
+  const tDue = intentionsFor(tISO);
+  let tRem = te?.rem || tDue.map(x => x.text).join(' · ');
+  if (!tName && tDue.length) tName = typeById(tDue[0].type)?.en || '';
   // During a Gregorian set, today's intention is the set's intention, even before today is marked.
   const ofToday = officesDue(tISO);
   if (tg) { tName = tg.set.carried ? `Gregorian · ${tg.need - tg.day + 1} left` : `Gregorian · day ${tg.day} of ${tg.need}`; tRem = tg.rem || tRem; }
@@ -906,6 +915,18 @@ function renderMass() {
 }
 
 // The day's entry form sits at the top of the Mass book: new intentions received and the Mass offered.
+// Written intentions: kept on the day they were received (entry.ints = [{text, on, type}]) and shown on the day they are for.
+function intentionsFor(iso) {
+  const out = [];
+  for (const [k, M] of Object.entries(S.mass)) for (const [d, e] of Object.entries(M.days || {}))
+    for (const it of e.ints || []) if (it.on === iso) out.push({ ...it, recd: `${k}-${pad(Number(d))}` });
+  return out;
+}
+const fmtShort = iso => new Date(iso + 'T00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+function intRow(it, i) {
+  return `<div class="introw"><span><b>${esc(it.text)}</b><span class="note">${esc((typeById(it.type)?.en || '').replace(/ Mass$/, ''))} · ${it.on === ui.day ? 'this day' : dayLabel(it.on)}</span></span><button type="button" class="iconbtn" data-act="int-del" data-v="${i}" aria-label="Remove">✕</button></div>`;
+}
+
 function renderEntry(pending) {
   const iso = ui.day, k = monthKeyOf(iso), d = Number(iso.slice(8));
   const e = S.mass[k]?.days?.[d] || {};
@@ -914,11 +935,13 @@ function renderEntry(pending) {
   const saved = !!S.mass[k]?.days?.[d];
   // While a Gregorian set is running, a new day starts with Gregorian ticked and the set's intention in the notes.
   const g = gregFor(iso), gRun = !saved && g && typeById(GREGORIAN)?.off;
-  const sel = saved ? off.first : gRun ? GREGORIAN : defaultFirst();
-  const remVal = saved ? e.rem || '' : gRun ? g.rem : '';
+  // Intentions written earlier for this date fill a new day: their Mass type is ticked and their text goes into Notes.
+  const due = intentionsFor(iso);
+  const sel = saved ? off.first : gRun ? GREGORIAN : (due.length && typeById(due[0].type)?.off) ? due[0].type : defaultFirst();
+  const remVal = saved ? e.rem || '' : [gRun ? g.rem : '', ...due.map(x => x.text)].filter(Boolean).join(' · ');
   const isToday = iso === todayISO();
   const dateLabel = new Date(iso + 'T00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
-  return `<div class="card entry" id="entry" data-fkind="${esc(e.fk || 'ordinary')}">
+  return `<div class="card entry" id="entry" data-fkind="${esc(e.fk || 'ordinary')}" data-ints="${esc(JSON.stringify(e.ints || []))}">
     <div class="entry-head">
       <button class="iconbtn" data-act="day-shift" data-v="-1" aria-label="Previous day">‹</button>
       <div class="entry-date"><span class="eyebrow">${isToday ? 'Today' : (S.mass[k]?.days?.[d] ? 'Editing' : 'Entry for')}</span><b>${esc(dateLabel)}</b>
@@ -929,6 +952,9 @@ function renderEntry(pending) {
     <div class="entry-cols">
       <details class="drop r" id="recvdrop"><summary><span class="dl">Intentions received ${ml(ML.received)}</span><span class="sum" id="recvsum">${esc(recvSummary(e.r) || 'None today')}</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary><div class="drop-body">
         ${R.map(t => `<div class="stepper-row"><span class="nm">${esc(t.en)} ${ml(t.ml)}${t.id === GREGORIAN ? '<span class="note">1 intention = 30 Masses</span>' : ''}</span>${stepper('r_' + t.id, e.r?.[t.id])}</div>`).join('')}
+        <div class="ints"><div class="ints-h">Intentions</div><div id="intlist">${(e.ints || []).map(intRow).join('')}</div>
+          <div class="field" style="margin-top:6px"><input id="inttext" placeholder="Intention, e.g. Birthday of Joseph's son"></div>
+          <div class="intadd"><select id="inttype" aria-label="Mass">${R.filter(t => t.id !== GREGORIAN).map(t => `<option value="${t.id}">${esc(t.en.replace(/ Mass$/, ''))}</option>`).join('')}</select><input id="inton" type="date" value="${iso}" aria-label="Pray on"><button type="button" class="btn small" data-act="int-add">Add</button></div></div>
         <div class="field"><label for="amt">Stipend received (₹)</label><input id="amt" type="number" inputmode="decimal" min="0" value="${n0(e.amt) || ''}" placeholder="0" data-auto="${e.amt == null || n0(e.amt) === stipendFor(e.r, e.fk) ? 1 : 0}"><span class="note">Worked out from your stipend rates. Change it if you received a different amount.</span></div>
       </div></details>
         ${typeById(FOUNDATION) ? foundationBox(e.fk) : ''}
@@ -1498,6 +1524,7 @@ function readOffered(sh) {
 function saveDay() {
   const sh = $('#entry'), k = monthKeyOf(ui.day), d = Number(ui.day.slice(8)), M = monthData(k);
   const entry = { r: readCounts(sh, 'r_'), o: readOffered(sh), amt: n0($('#amt', sh).value), rem: $('#rem', sh).value.trim() };
+  const ints = JSON.parse(sh.dataset.ints || '[]'); if (ints.length) entry.ints = ints;
   if (entry.r[FOUNDATION] || entry.o[FOUNDATION]) entry.fk = sh.dataset.fkind || 'ordinary';
   if (entry.o[GREGORIAN] && !entry.rem) entry.rem = gregFor(ui.day)?.rem || '';
   // A day saved without any Mass ticked is logged as "No Mass".
@@ -1909,6 +1936,18 @@ document.addEventListener('click', e => {
     case 'pmonth': ui.pMonth = shiftMonth(ui.pMonth, Number(v)); render(); break;
     case 'mview': ui.massView = v; try { localStorage.setItem('intentionally.view', v); } catch (_) {} render(); break;
     case 'edit-day': ui.day = `${ui.month}-${pad(Number(v))}`; ui.mpage = 'today'; render(); scrollTo({ top: 0, behavior: 'smooth' }); break;
+    case 'int-add': case 'int-del': {
+      const en = $('#entry'), ints = JSON.parse(en.dataset.ints || '[]');
+      let type;
+      if (act === 'int-add') {
+        const text = $('#inttext', en).value.trim(); if (!text) { toast('Write the intention first'); break; }
+        type = $('#inttype', en).value; ints.push({ text, type, on: $('#inton', en).value || ui.day }); $('#inttext', en).value = '';
+      } else type = ints.splice(Number(v), 1)[0]?.type;
+      // Each written intention is one intention received of its kind.
+      const inp = $(`#st-r_${type}`, en); if (inp) inp.value = Math.max(0, n0(inp.value) + (act === 'int-add' ? 1 : -1)) || '';
+      en.dataset.ints = JSON.stringify(ints); $('#intlist', en).innerHTML = ints.map(intRow).join('');
+      refreshStipend(en); break;
+    }
     case 'mpage': ui.mpage = v; if (v === 'today') { ui.day = todayISO(); } render(); scrollTo(0, 0); break;
     case 'day-shift': { const dt = new Date(ui.day + 'T00:00'); dt.setDate(dt.getDate() + Number(v)); ui.day = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`; ui.month = monthKeyOf(ui.day); render(); break; }
     case 'day-today': ui.day = todayISO(); ui.month = monthKeyOf(ui.day); ui.mpage = 'today'; render(); scrollTo({ top: 0, behavior: 'smooth' }); break;
